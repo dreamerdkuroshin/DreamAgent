@@ -1,0 +1,8 @@
+Scope: all 3 workspace projects
+C:\Users\manth\DreamAgent\frontend of dreamAgent\DreamAgent-v10-UI\artifacts\api-server:
+ ERR_PNPM_WORKSPACE_PKG_NOT_FOUND  In artifacts\api-server: "@workspace/db@workspace:*" is in the dependencies but no package named "@workspace/db" is present in the workspace
+
+This error happened while installing a direct dependency of C:\Users\manth\DreamAgent\frontend of dreamAgent\DreamAgent-v10-UI\artifacts\api-server
+
+Packages found in the workspace: 
+Progress: resolved 1, reused 0, downloaded 0, added 0

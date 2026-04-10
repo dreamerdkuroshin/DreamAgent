@@ -1,0 +1,63 @@
+# DreamAgent .gitignore
+# Fix #31: Added .env so secrets are not committed to version control
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+output.log
+backend_err.txt
+backend_error_log.txt
+backend_refactor_test*.log
+test_output.txt
+error_log.txt
+dreamagent_run.log
+
+# Test outputs
+test_results.json
+test_res_final.txt
+full_models_list*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Docker volumes
+data/
+tmp/
+
+# WebP screenshots
+*.webp
+
+# Node/Frontend
+node_modules/
+.next/
+dist/
+.cache/

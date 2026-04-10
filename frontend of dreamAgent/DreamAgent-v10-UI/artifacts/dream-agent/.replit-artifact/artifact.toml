@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DreamAgent"
+version = "1.0.0"
+id = "artifacts/dream-agent"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 20561
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/dream-agent run dev"
+
+[services.env]
+PORT = "20561"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/dream-agent", "run", "build"]
+publicDir = "artifacts/dream-agent/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

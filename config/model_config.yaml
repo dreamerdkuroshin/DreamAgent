@@ -1,0 +1,119 @@
+# DreamAgent Model Configuration
+
+# Default model settings
+default_model: "gpt-4-turbo"
+
+# Model providers and their configurations
+models:
+  gpt-4-turbo:
+    provider: "openai"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 4096
+    top_p: 1.0
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+
+  gpt-4:
+    provider: "openai"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 8192
+    top_p: 1.0
+
+  gpt-3.5-turbo:
+    provider: "openai"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 4096
+
+  claude-3-opus:
+    provider: "anthropic"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 4096
+    top_p: 1.0
+
+  claude-3-sonnet:
+    provider: "anthropic"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 4096
+
+  claude-3-haiku:
+    provider: "anthropic"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 2048
+
+  gemini-pro:
+    provider: "google"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 2048
+
+  mistral-large:
+    provider: "mistral"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 4096
+
+  deepseek-chat:
+    provider: "deepseek"
+    type: "chat"
+    temperature: 0.7
+    max_tokens: 2048
+
+  ollama-local:
+    provider: "ollama"
+    type: "local"
+    base_url: "http://localhost:11434"
+    temperature: 0.7
+    max_tokens: 2048
+
+# Model routing and fallback
+routing:
+  reasoning_tasks: "gpt-4-turbo"
+  coding_tasks: "gpt-4-turbo"
+  creative_tasks: "claude-3-opus"
+  quick_tasks: "gpt-3.5-turbo"
+  default: "gpt-4-turbo"
+
+# Fallback models if primary is unavailable
+fallback:
+  - "gpt-4-turbo"
+  - "claude-3-opus"
+  - "gpt-3.5-turbo"
+  - "mistral-large"
+
+# Model capabilities
+capabilities:
+  vision: ["gpt-4-turbo", "claude-3-opus", "gemini-pro"]
+  function_calling: ["gpt-4-turbo", "gpt-3.5-turbo", "claude-3-opus"]
+  json_mode: ["gpt-4-turbo", "claude-3-opus"]
+  code_execution: ["gpt-4-turbo", "claude-3-opus"]
+
+# Embedding models
+embedding_models:
+  text-embedding-3-small:
+    provider: "openai"
+    dimension: 1536
+  
+  text-embedding-3-large:
+    provider: "openai"
+    dimension: 3072
+  
+  all-minilm-l6-v2:
+    provider: "huggingface"
+    dimension: 384
+
+# Retry and rate limit settings
+retry:
+  max_retries: 3
+  initial_delay: 1
+  max_delay: 60
+  backoff_factor: 2
+
+rate_limit:
+  requests_per_minute: 60
+  tokens_per_minute: 90000

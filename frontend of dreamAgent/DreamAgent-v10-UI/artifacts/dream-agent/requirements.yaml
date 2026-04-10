@@ -1,0 +1,21 @@
+packages:
+  "framer-motion": "For sleek, futuristic page transitions and micro-interactions"
+  "recharts": "For dashboard statistics and performance charts"
+  "date-fns": "For formatting timestamps elegantly"
+  "clsx": "Utility for constructing className strings"
+  "tailwind-merge": "Utility to merge tailwind classes safely"
+  "@hookform/resolvers": "Zod validation with react-hook-form"
+  "react-hook-form": "Form state management"
+  "zod": "Schema validation for forms"
+
+images:
+  - path: "artifacts/dream-agent/public/images/hero-bg.png"
+    description: "Abstract dark futuristic grid with glowing neon cyan and purple nodes, shallow depth of field, sleek tech aesthetic, 4k"
+    aspect_ratio: "16:9"
+  - path: "artifacts/dream-agent/public/images/empty-ai.png"
+    description: "Minimalist glowing AI core icon floating in dark void, abstract geometric shapes with neon cyan highlights, 3d render"
+    aspect_ratio: "1:1"
+
+notes:
+  - Uses @workspace/api-client-react for all data fetching
+  - Relies on React Query cache invalidation for instant UI updates

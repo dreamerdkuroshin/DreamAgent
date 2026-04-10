@@ -1,0 +1,90 @@
+# DreamAgent System Configuration
+
+# Server settings
+server:
+  host: "[IP_ADDRESS]"
+  port: 8000
+  debug: false
+  log_level: "INFO"
+
+# Agent settings
+agents:
+  max_agents: 10
+  default_timeout: 300
+  enable_persistence: true
+  persistence_path: "./data/agents"
+
+# Memory settings
+memory:
+  short_term_enabled: true
+  short_term_size: 1000
+  long_term_enabled: true
+  long_term_path: "./data/memory"
+  vector_enabled: true
+  vector_backend: "qdrant"
+  embedding_model: "text-embedding-3-small"
+
+# Sandbox settings
+sandbox:
+  enabled: true
+  type: "docker"
+  timeout: 30
+  max_memory: "2GB"
+  network_access: false
+
+# Safety settings
+safety:
+  enable_injection_guard: true
+  enable_action_validator: true
+  enable_policy_engine: true
+  policy_strict_mode: false
+
+# Monitoring
+monitoring:
+  enable_token_tracking: true
+  enable_cost_tracking: true
+  enable_budget_control: true
+  budget_limit: 100.0
+  budget_currency: "USD"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/dreamagent.log"
+  max_file_size: 10485760
+  backup_count: 5
+
+# Task queue
+task_queue:
+  enabled: true
+  max_workers: 4
+  queue_size: 1000
+
+# API keys and secrets (load from environment)
+api_keys:
+  openai: "${OPENAI_API_KEY}"
+  claude: "${CLAUDE_API_KEY}"
+  huggingface: "${HUGGINGFACE_API_KEY}"
+  tavily: "${TAVILY_API_KEY}"
+  gemini: "${GEMINI_API_KEY}"
+  ollama: "${OLLAMA_API_KEY}"
+  mistral: "${MISTRAL_API_KEY}"
+  deepseek: "${DEEPSEEK_API_KEY}"
+  qwen: "${QWEN_API_KEY}"
+  kimi: "${KIMI_API_KEY}"
+  grok: "${GROK_API_KEY}"
+  llama: "${LLAMA_API_KEY}"
+  bing: "${BING_API_KEY}"
+  ernie: "${ERNIE_API_KEY}"
+  jamba: "${JAMBA_API_KEY}"
+  amazon: "${AMAZON_API_KEY}"
+  nova: "${NOVA_API_KEY}"
+  coheres: "${COHERES_API_KEY}"
+  mimo: "${MIMO_API_KEY}"
+  zhipuai: "${ZHIPUAI_API_KEY}"
+  mini: "${MINI_API_KEY}"
+  max: "${MAX_API_KEY}"
+  hermes: "${HERMES_API_KEY}"
+  ibm: "${IBM_API_KEY}"
+  replit: "${REPLIT_API_KEY}"

@@ -1,0 +1,52 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+python-dotenv
+requests
+httpx
+cachetools
+
+# LLM clients
+openai
+anthropic
+google-generativeai
+
+
+
+# Database
+psycopg2-binary
+pgvector
+
+# Embeddings (local fallback)
+sentence-transformers
+chromadb
+pymupdf
+python-multipart
+openpyxl
+python-docx
+pynacl
+beautifulsoup4
+
+# Web search (no API key required)
+duckduckgo-search
+
+# Task queue (redis client works with Dragonfly — 100% Redis-protocol compatible)
+redis
+rq
+
+# Testing
+pytest
+pytest-asyncio
+
+# Optional monitoring
+# celery  # removed — not used
+# langgraph  # removed — unused legacy
+# tavily-python  # removed — replaced by DuckDuckGo search
+# faiss-cpu  # removed — using pgvector/SQLite fallback
+# google-auth-oauthlib  # keep only if OAuth flow is needed
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+psutil

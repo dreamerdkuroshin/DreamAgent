@@ -1,0 +1,175 @@
+# DreamAgent Tool Configuration
+
+# Available tools and their settings
+tools:
+  # Web search tools
+  tavily_search:
+    enabled: true
+    provider: "tavily"
+    max_results: 10
+    include_raw_content: true
+    timeout: 30
+
+  google_search:
+    enabled: true
+    provider: "google"
+    max_results: 10
+    timeout: 30
+
+  # Code execution tools
+  python_executor:
+    enabled: true
+    sandbox_type: "docker"
+    timeout: 30
+    max_memory: "2GB"
+    allowed_imports:
+      - "numpy"
+      - "pandas"
+      - "requests"
+      - "json"
+      - "math"
+    blocked_modules:
+      - "os.system"
+      - "subprocess"
+
+  js_executor:
+    enabled: true
+    sandbox_type: "docker"
+    timeout: 30
+    max_memory: "1GB"
+    allowed_packages:
+      - "axios"
+      - "lodash"
+
+  # Calculator
+  calculator:
+    enabled: true
+    decimal_places: 10
+    scientific_functions: true
+
+  # File system tools
+  filesystem:
+    enabled: true
+    sandbox: true
+    allowed_paths:
+      - "./data"
+      - "./workspace"
+    blocked_paths:
+      - "/etc"
+      - "/sys"
+      - "C:\\Windows"
+
+  # API tools
+  stripe:
+    enabled: false
+    provider: "stripe"
+    sandbox_mode: true
+    required_permissions: ["read", "write"]
+
+  slack:
+    enabled: true
+    provider: "slack"
+    rate_limit: 10
+    timeout: 30
+
+  discord:
+    enabled: true
+    provider: "discord"
+    rate_limit: 10
+    timeout: 30
+
+  # Data source tools
+  linear:
+    enabled: false
+    provider: "linear"
+    timeout: 30
+
+  notion:
+    enabled: false
+    provider: "notion"
+    timeout: 30
+
+  figma:
+    enabled: false
+    provider: "figma"
+    timeout: 30
+
+  grafana:
+    enabled: false
+    provider: "grafana"
+    timeout: 30
+
+  # Cloud tools
+  chrome_control:
+    enabled: true
+    headless: true
+    timeout: 60
+    max_tabs: 10
+
+  terminal:
+    enabled: true
+    sandbox: true
+    timeout: 30
+    allowed_commands:
+      - "ls"
+      - "pwd"
+      - "cat"
+      - "grep"
+    blocked_commands:
+      - "rm"
+      - "reboot"
+      - "shutdown"
+
+# Tool permissions by role
+permissions:
+  admin:
+    all_tools: true
+    all_permissions: ["read", "write", "execute", "delete"]
+
+  developer:
+    tools:
+      - "python_executor"
+      - "js_executor"
+      - "filesystem"
+      - "terminal"
+    permissions: ["read", "write", "execute"]
+
+  user:
+    tools:
+      - "tavily_search"
+      - "calculator"
+      - "slack"
+    permissions: ["read"]
+
+# Tool selection and routing
+routing:
+  analysis_tasks:
+    - "python_executor"
+    - "calculator"
+  
+  web_tasks:
+    - "tavily_search"
+    - "chrome_control"
+  
+  data_tasks:
+    - "filesystem"
+    - "notion"
+    - "linear"
+
+  communication_tasks:
+    - "slack"
+    - "discord"
+
+# Tool timeout and retry settings
+defaults:
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1
+  error_recovery: true
+
+# Tool performance settings
+performance:
+  parallel_execution: true
+  max_parallel_tools: 5
+  cache_results: true
+  cache_ttl: 3600

@@ -1,0 +1,3 @@
+❌ LLM Failure: All providers failed.
+  • nvidia (meta/llama-3.1-405b-instruct): Error: HTTPSConnectionPool(host='integrate.api.nvidia.com', port=443): Read timed out. (read timeout=15)
+  • ollama (gemma3:4b): Error: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=15)

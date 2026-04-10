@@ -1,0 +1,12 @@
+{
+  "name": "Notion Plugin",
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "notion.create_page",
+      "description": "Create a page in Notion"
+    }
+  ],
+  "permissions": ["notion.create_page"],
+  "requires_auth": ["notion"]
+}
