@@ -61,7 +61,8 @@ KNOWN_KEYS: Dict[str, str] = {
     # ── Service / Tool API Keys ────────────────────────────────────
     "TAVILY_API_KEY":       "Tavily Search",
     "AHREFS_API_KEY":       "Ahrefs",
-    "SUPABASE_API_KEY":     "Supabase",
+    "SUPABASE_URL":         "Supabase Database URL",
+    "SUPABASE_ANON_KEY":    "Supabase Anon Key",
     "STRIPE_API_KEY":       "Stripe",
     "OLLAMA_BASE_URL":      "Ollama Base URL",
 }
