@@ -57,7 +57,7 @@ _ALL_PROVIDERS = [
     ("zhipuai",     "https://open.bigmodel.cn/api/paas/v4",
                      "ZHIPUAI_API_KEY",     "glm-4"),
     ("cohere",      "https://api.cohere.ai/v1",
-                     "COHERES_API_KEY",     "command-r"),
+                     "COHERE_API_KEY",      "command-r"),
     ("jamba",       "https://api.ai21.com/studio/v1",
                      "JAMBA_API_KEY",       "jamba-instruct-v1"),
     ("kimi",        "https://api.moonshot.cn/v1",

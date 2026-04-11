@@ -34,43 +34,36 @@ ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 # All known env-var keys mapped to their friendly provider name
 KNOWN_KEYS: Dict[str, str] = {
+    # ── LLM Providers ─────────────────────────────────────────────
     "GEMINI_API_KEY":       "Google Gemini",
     "OPENAI_API_KEY":       "OpenAI",
-    "ANTHROPIC_API_KEY":    "Anthropic / Claude",
+    "CLAUDE_API_KEY":       "Anthropic / Claude",
+    "ANTHROPIC_API_KEY":    "Anthropic (alt)",
     "GROQ_API_KEY":         "Groq",
     "DEEPSEEK_API_KEY":     "DeepSeek",
     "HUGGINGFACE_API_KEY":  "HuggingFace",
     "OPENROUTER_API_KEY":   "OpenRouter",
     "MISTRAL_API_KEY":      "Mistral",
-    "QWEN_API_KEY":         "Qwen",
-    "NVIDIA_API_KEY":       "NVIDIA",
+    "QWEN_API_KEY":         "Qwen (Alibaba)",
+    "NVIDIA_API_KEY":       "NVIDIA NIM",
     "XAI_API_KEY":          "xAI Grok",
     "PERPLEXITY_API_KEY":   "Perplexity",
-    "COHERES_API_KEY":      "Cohere",
-    "ZHIPUAI_API_KEY":      "Zhipu AI",
+    "COHERE_API_KEY":       "Cohere",
+    "ZHIPUAI_API_KEY":      "Zhipu AI (GLM)",
     "MINIMAX_API_KEY":      "MiniMax",
     "IBM_API_KEY":          "IBM Granite",
     "AMAZON_API_KEY":       "Amazon Nova",
-    "JAMBA_API_KEY":        "AI21 Jamba",
+    "JAMBA_API_KEY":        "AI21 / Jamba",
     "REPLIT_API_KEY":       "Replit",
     "MIMO_API_KEY":         "Mimo",
-    "HERMES_API_KEY":       "Hermes",
+    "HERMES_API_KEY":       "Hermes (NousResearch)",
+    "KIMI_API_KEY":         "Kimi (Moonshot)",
+    # ── Service / Tool API Keys ────────────────────────────────────
     "TAVILY_API_KEY":       "Tavily Search",
     "AHREFS_API_KEY":       "Ahrefs",
-    "SUPABASE_API_KEY":     "SupaBase",
+    "SUPABASE_API_KEY":     "Supabase",
     "STRIPE_API_KEY":       "Stripe",
     "OLLAMA_BASE_URL":      "Ollama Base URL",
-    "CLAUDE_API_KEY":       "Claude (legacy)",
-    # --- Local Tools ---
-    "TOOL_PYTHON_ENABLED":       "Python Code Executor",
-    "TOOL_JS_ENABLED":           "JavaScript Executor",
-    "TOOL_TERMINAL_ENABLED":     "Terminal / Shell",
-    "TOOL_FILESYSTEM_ENABLED":   "Filesystem Access",
-    "TOOL_BROWSER_ENABLED":      "Chrome Browser Control",
-    "TOOL_TAVILY_ENABLED":       "Tavily Web Search",
-    "TOOL_GOOGLE_ENABLED":       "Google Search",
-    "TOOL_CALCULATOR_ENABLED":   "Calculator Tool",
-    "TOOL_INTELLIGENCE_ENABLED": "Tool Intelligence (Auto-select)"
 }
 
 

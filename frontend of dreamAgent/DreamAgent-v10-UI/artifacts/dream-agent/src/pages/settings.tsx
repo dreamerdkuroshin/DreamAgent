@@ -540,14 +540,20 @@ function ApiKeysPanel() {
     );
   }
 
-  // Group keys: LLMs usually end with _API_KEY and are in the first ~20 of our KNOWN_KEYS
+  // Keys that belong to Local Tools tab — exclude from API Keys panel entirely
+  const TOOL_KEYS = new Set([
+    "TOOL_PYTHON_ENABLED", "TOOL_JS_ENABLED", "TOOL_TERMINAL_ENABLED",
+    "TOOL_FILESYSTEM_ENABLED", "TOOL_BROWSER_ENABLED", "TOOL_TAVILY_ENABLED",
+    "TOOL_GOOGLE_ENABLED", "TOOL_CALCULATOR_ENABLED", "TOOL_INTELLIGENCE_ENABLED",
+  ]);
+  const OTHER_SERVICE_KEYS = new Set(["TAVILY_API_KEY", "AHREFS_API_KEY", "SUPABASE_API_KEY", "STRIPE_API_KEY"]);
+
+  // LLM providers only — excludes tools, service integrations, and OLLAMA (has its own row)
   const llmKeys = Object.entries(keys).filter(([k]) =>
-    !["TAVILY_API_KEY", "AHREFS_API_KEY", "SUPABASE_API_KEY", "STRIPE_API_KEY", "OLLAMA_BASE_URL"].includes(k)
+    !TOOL_KEYS.has(k) && !OTHER_SERVICE_KEYS.has(k) && k !== "OLLAMA_BASE_URL"
   );
 
-  const otherKeys = Object.entries(keys).filter(([k]) =>
-    ["TAVILY_API_KEY", "AHREFS_API_KEY", "SUPABASE_API_KEY", "STRIPE_API_KEY"].includes(k)
-  );
+  const otherKeys = Object.entries(keys).filter(([k]) => OTHER_SERVICE_KEYS.has(k));
 
   return (
     <div className="space-y-6">
