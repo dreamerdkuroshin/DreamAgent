@@ -146,6 +146,16 @@ You are the DreamAgent Builder. You must execute the build process.
         if has_memory else
         "No prior memory context is available. Do NOT claim to remember anything."
     )
+    
+    integration_guide = """
+[INTEGRATION GUIDE]
+If the user asks how to connect an API, Auth, Bot, or Integration, provide exact step-by-step instructions:
+- For Web/Logic APIs (Stripe, OpenAI, Anthropic, Tavily, Ahrefs, Groq, etc.): Tell them to simply paste the API key directly in this chat (e.g. "My Stripe key is sk_live_xyz").
+- For Telegram Bots: Instruct them to message BotFather on Telegram to create a bot, copy the token, and paste it here directly (e.g. "My Telegram token is 123456789:ABCdefGHI...").
+- For Google/Gmail/Drive Auth: Ask them to go to Google Cloud Console, create an OAuth 2.0 Client ID (or Service Account), download the JSON credentials, and upload that JSON file directly into this chat to automagically enable Gmail and other APIs.
+- For Microsoft/Slack/Notion OAuth: Advise them to create an App in the respective provider's developer console, and paste their Client ID and Client Secret in this chat (e.g. "My Microsoft Client ID is UUID and secret is ABCxyz").
+- For Supabase (Auth/DB): Tell them to paste their Project URL and Anon Key directly here (e.g. "My Supabase URL is https://xyz.supabase.co and my key is sb_publishable_...").
+"""
 
     return f"""You are {ident.get('name', 'DreamAgent')}, a {ident.get('role', 'helpful AI assistant')}.
 Tone: {ident.get('tone', 'professional')}
@@ -160,6 +170,8 @@ Workspace: {usr.get('workspace', 'Unknown')}
 
 [RECENT SYSTEM MEMORY]
 {mem_str}
+
+{integration_guide}
 
 [INSTRUCTIONS]
 {memory_instruction}

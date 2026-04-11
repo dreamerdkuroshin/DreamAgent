@@ -102,9 +102,9 @@ export default function Monitoring() {
   });
 
   const { data: toolStats } = useQuery({
-    queryKey: ["/v1/monitoring/tools"],
+    queryKey: ["/api/v1/monitoring/tools"],
     queryFn: async () => {
-      const res = await fetch("/v1/monitoring/tools");
+      const res = await fetch("/api/v1/monitoring/tools");
       if (!res.ok) return null;
       const json = await res.json();
       return json.data;
@@ -113,9 +113,9 @@ export default function Monitoring() {
   });
 
   const { data: queueStats } = useQuery({
-    queryKey: ["/system-status"],
+    queryKey: ["/api/system-status"],
     queryFn: async () => {
-      const res = await fetch("/system-status");
+      const res = await fetch("/api/system-status");
       if (!res.ok) return null;
       const json = await res.json();
       return json.queues;

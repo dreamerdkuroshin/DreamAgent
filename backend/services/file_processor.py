@@ -24,7 +24,8 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 # ─── Safety Limits ────────────────────────────────────────────────────────────
-MAX_CHARS = 12_000          # Hard token budget for LLM injection (~3000 tokens)
+MAX_CHARS = 200_000         # Safe limit for most models
+CHUNK_SIZE = 20_000         # Smart chunking context limit
 MAX_ARCHIVE_FILES = 200     # Max entries listed from a ZIP/TAR
 MAX_ARCHIVE_SIZE_MB = 50    # Max uncompressed size we'll inspect (50 MB)
 MAX_SPREADSHEET_ROWS = 50   # Rows shown from CSV / XLSX preview

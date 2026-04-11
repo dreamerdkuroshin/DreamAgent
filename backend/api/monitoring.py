@@ -17,14 +17,14 @@ router = APIRouter(tags=["monitoring"])
 
 # ─── /v1/monitoring/* (internal namespaced routes) ───────────────────────────
 
-@router.get("/v1/monitoring/tools")
+@router.get("/api/v1/monitoring/tools")
 def get_tool_stats():
     """Returns runtime stats for all tools."""
     stats = tool_tracker.get_all_stats()
     return {"success": True, "data": stats}
 
 
-@router.get("/v1/monitoring/memory")
+@router.get("/api/v1/monitoring/memory")
 def get_memory_stats(db: Session = Depends(get_session)):
     """Returns memory subsystem stats."""
     client = dragonfly.get_client()
@@ -49,7 +49,7 @@ def get_memory_stats(db: Session = Depends(get_session)):
     }
 
 
-@router.get("/v1/monitoring/system")
+@router.get("/api/v1/monitoring/system")
 def get_system_health():
     """Aggregates system health."""
     is_dragonfly = dragonfly.is_connected()

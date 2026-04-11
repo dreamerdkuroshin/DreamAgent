@@ -61,6 +61,16 @@ KNOWN_KEYS: Dict[str, str] = {
     "STRIPE_API_KEY":       "Stripe",
     "OLLAMA_BASE_URL":      "Ollama Base URL",
     "CLAUDE_API_KEY":       "Claude (legacy)",
+    # --- Local Tools ---
+    "TOOL_PYTHON_ENABLED":       "Python Code Executor",
+    "TOOL_JS_ENABLED":           "JavaScript Executor",
+    "TOOL_TERMINAL_ENABLED":     "Terminal / Shell",
+    "TOOL_FILESYSTEM_ENABLED":   "Filesystem Access",
+    "TOOL_BROWSER_ENABLED":      "Chrome Browser Control",
+    "TOOL_TAVILY_ENABLED":       "Tavily Web Search",
+    "TOOL_GOOGLE_ENABLED":       "Google Search",
+    "TOOL_CALCULATOR_ENABLED":   "Calculator Tool",
+    "TOOL_INTELLIGENCE_ENABLED": "Tool Intelligence (Auto-select)"
 }
 
 
@@ -152,7 +162,13 @@ def get_keys(db: Session = Depends(get_session)):
             db_val = auth_service.get_api_key(db, env_key)
             val = db_val or ""
 
-        is_set = bool(val) and val.upper() not in ("ENV", "YOUR_API_KEY", "PLACEHOLDER", "NONE", "NULL")
+        # Using improved validation handler
+        is_set = bool(
+            val 
+            and not val.startswith("${") 
+            and val.strip() != "" 
+            and val.upper() not in ("ENV", "YOUR_API_KEY", "YOUR-API-KEY-HERE", "PLACEHOLDER", "NONE", "NULL")
+        )
         result[env_key] = {
             "name": name,
             "configured": is_set,

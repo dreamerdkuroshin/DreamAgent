@@ -62,3 +62,9 @@ async def callback(provider: str, request: Request):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"OAuth Flow Failed: {e}")
+
+@router.get("/status")
+def status(provider: str, user_id: str, bot_id: str):
+    from .oauth_manager import has_token
+    connected = has_token(user_id, bot_id, provider)
+    return {"connected": connected, "provider": provider}

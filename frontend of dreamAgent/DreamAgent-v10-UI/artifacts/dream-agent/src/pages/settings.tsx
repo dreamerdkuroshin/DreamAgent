@@ -6,7 +6,7 @@ import {
   Key, Shield, Globe, Bot, Puzzle, Monitor,
   CheckCircle, XCircle, ChevronRight, Database, DollarSign, Box,
   Activity, Play, Square, Terminal, RefreshCw, Zap, Server, Loader2,
-  Upload, Link2, Link2Off, ExternalLink
+  Upload, Link2, Link2Off, ExternalLink, GitBranch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -24,12 +24,7 @@ const TABS: { id: Tab; label: string; icon: any; badge?: string }[] = [
   { id: "oauth", label: "OAuth Apps", icon: Globe },
   { id: "bot-tokens", label: "Bot Tokens", icon: Bot },
   { id: "queue", label: "Task Queue", icon: Activity, badge: "live" },
-  { id: "mcp", label: "MCP Servers", icon: Puzzle },
   { id: "local-tools", label: "Local Tools", icon: Monitor },
-  { id: "memory", label: "Memory", icon: Database },
-  { id: "sandbox", label: "Sandbox", icon: Box, badge: "v10" },
-  { id: "budget", label: "Budget", icon: DollarSign },
-  { id: "safety", label: "Safety", icon: Shield },
 ];
 
 function OAuthConnectorRow({
@@ -59,11 +54,17 @@ function OAuthConnectorRow({
         setTimeout(async () => {
           try {
             const res = await fetch(
-              `${BACKEND}/api/v1/oauth/advanced/status?user_id=${USER_ID}`
+              `${BACKEND}/api/v1/oauth/status?provider=${provider}&user_id=${USER_ID}&bot_id=${BOT_ID}`
             );
-            // Token written → mark connected via localStorage
-            onStatusChange(provider, true);
-            toast({ title: `✅ ${name} connected successfully!` });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.connected) {
+                onStatusChange(provider, true);
+                toast({ title: `✅ ${name} connected successfully!` });
+              } else {
+                toast({ title: `⚠️ ${name} connection cancelled or failed.` });
+              }
+            }
           } catch { }
           setChecking(false);
         }, 1000);
@@ -281,8 +282,19 @@ function ApiKeyRow({ name, envKey, placeholder, hasKey, initialValue }: { name: 
   );
 }
 
-function ToggleRow({ label, description, enabled: def, badge }: { label: string; description: string; enabled?: boolean; badge?: string }) {
-  const [enabled, setEnabled] = useState(def ?? false);
+function ToggleRow({ label, description, enabled: def, badge, settingKey }: { label: string; description: string; enabled?: boolean; badge?: string; settingKey?: string }) {
+  const { data: keys } = useGetSettingsKeys();
+  const { mutateAsync: updateSettings } = useUpdateSettings();
+  
+  const initialEnabled = settingKey && keys ? keys[settingKey]?.configured ?? def : def;
+  const [enabled, setEnabled] = useState(initialEnabled ?? false);
+
+  useEffect(() => {
+    if (settingKey && keys && keys[settingKey] !== undefined) {
+      setEnabled(keys[settingKey].configured);
+    }
+  }, [keys, settingKey]);
+
   return (
     <div className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0">
       <div className="flex-1 pr-4">
@@ -292,12 +304,50 @@ function ToggleRow({ label, description, enabled: def, badge }: { label: string;
         </div>
         <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
       </div>
-      <button onClick={() => setEnabled(!enabled)}
+      <button onClick={async () => {
+          const next = !enabled;
+          setEnabled(next);
+          if (settingKey) {
+            try {
+               await updateSettings({ [settingKey]: next ? "true" : "" });
+            } catch {}
+          }
+        }}
         className={cn("relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0",
           enabled ? "bg-primary shadow-[0_0_10px_rgba(0,240,255,0.4)]" : "bg-white/10")}>
         <span className={cn("absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200",
           enabled ? "left-6" : "left-1")} />
       </button>
+    </div>
+  );
+}
+
+function ConnectorRow({ name, description, logo, connected, connectUrl }: { name: string; description: string; logo: string; connected: boolean; connectUrl: string }) {
+  return (
+    <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0">
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "w-9 h-9 rounded-lg border flex items-center justify-center text-sm font-bold",
+          connected
+            ? "bg-emerald-400/10 border-emerald-400/30 text-emerald-400"
+            : "bg-white/5 border-white/10 text-foreground"
+        )}>
+          {logo}
+        </div>
+        <div>
+          <div className="font-medium text-foreground text-sm">{name}</div>
+          <div className="text-xs text-muted-foreground">{description}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {connected ? (
+          <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle className="w-3.5 h-3.5" /> Connected</span>
+        ) : (
+          <Button variant="outline" className="text-xs px-3 py-1 h-auto" onClick={() => window.open(connectUrl, "_blank")}>
+            Configure
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -384,7 +434,7 @@ function TaskQueuePanel() {
     if (!shellCmd.trim()) return;
     setShellRunning(true); setShellOutput("");
     try {
-      const res = await fetch("/api/v1/integrations/shell", {
+      const res = await fetch("/api/v1/integrations/shell?confirm=true", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command: shellCmd }),
@@ -668,15 +718,24 @@ function OAuthPanel({ connectedProviders, setConnectedProviders }: any) {
           </div>
         </div>
 
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 mt-2">Google (all services use one OAuth token)</div>
-        <OAuthConnectorRow name="Gmail" description="Read, send and manage emails" logo="G" provider="google"
-          connected={connectedProviders.has("google")} onStatusChange={handleStatusChange} />
-        <OAuthConnectorRow name="Google Drive" description="File access and cloud storage" logo="D" provider="google"
-          connected={connectedProviders.has("google")} onStatusChange={handleStatusChange} />
-        <OAuthConnectorRow name="Google Calendar" description="Schedule and event management" logo="C" provider="google"
-          connected={connectedProviders.has("google")} onStatusChange={handleStatusChange} />
-        <OAuthConnectorRow name="YouTube" description="Video data, comments moderation (v10)" logo="▶" provider="google"
-          connected={connectedProviders.has("google")} onStatusChange={handleStatusChange} />
+        {googleStatus.configured ? (
+          <>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 mt-2">Google Services</div>
+            <OAuthConnectorRow name="Gmail" description="Read, send and manage emails" logo="G" provider="gmail"
+              connected={connectedProviders.has("gmail")} onStatusChange={handleStatusChange} />
+            <OAuthConnectorRow name="Google Drive" description="File access and cloud storage" logo="D" provider="gdrive"
+              connected={connectedProviders.has("gdrive")} onStatusChange={handleStatusChange} />
+            <OAuthConnectorRow name="Google Calendar" description="Schedule and event management" logo="C" provider="gcalendar"
+              connected={connectedProviders.has("gcalendar")} onStatusChange={handleStatusChange} />
+            <OAuthConnectorRow name="YouTube" description="Video data, comments moderation (v10)" logo="▶" provider="youtube"
+              connected={connectedProviders.has("youtube")} onStatusChange={handleStatusChange} />
+          </>
+        ) : (
+          <div className="text-sm text-amber-400/80 mb-6 border border-amber-400/20 p-4 rounded-xl bg-amber-400/5 mt-4">
+            ⚠️ <strong>Google Integration Requires JSON Upload</strong><br />
+            Please upload and verify your Google <code className="text-amber-400">client_secret.json</code> above to enable connectors for Gmail, Google Drive, Calendar, and YouTube.
+          </div>
+        )}
 
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 mt-4">Microsoft (all services use one OAuth token)</div>
         <OAuthConnectorRow name="Microsoft Teams" description="Meetings and workspace messaging" logo="M" provider="microsoft"
@@ -710,17 +769,33 @@ export default function Settings() {
     const searchParams = new URLSearchParams(window.location.search);
     const connected = searchParams.get("connected");
     if (connected) {
-      // Mark this provider as connected and persist to localStorage
-      setConnectedProviders(prev => {
-        const next = new Set(prev);
-        next.add(connected);
-        localStorage.setItem("oauth_connected_providers", JSON.stringify([...next]));
-        return next;
-      });
-      toast({ title: `✅ ${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully!` });
-      // Clean up the URL
+      // Clean up the URL visibly immediately
       window.history.replaceState({}, "", "/settings?tab=oauth");
       setActiveTab("oauth");
+
+      // Verify the backend actually has a token for this!
+      fetch(`${BACKEND}/api/v1/oauth/status?provider=${connected}&user_id=${USER_ID}&bot_id=${BOT_ID}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.connected) {
+            setConnectedProviders(prev => {
+              const next = new Set(prev);
+              next.add(connected);
+              localStorage.setItem("oauth_connected_providers", JSON.stringify([...next]));
+              return next;
+            });
+            toast({ title: `✅ ${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully!` });
+          } else {
+            toast({ title: `⚠️ Failed to verify ${connected} connection.`, variant: "destructive" });
+            setConnectedProviders(prev => {
+              const next = new Set(prev);
+              next.delete(connected);
+              localStorage.setItem("oauth_connected_providers", JSON.stringify([...next]));
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -845,15 +920,15 @@ export default function Settings() {
             <Card className="p-6">
               <h3 className="text-lg font-display font-bold mb-1 flex items-center gap-2"><Monitor className="w-5 h-5 text-primary" /> Local Tools</h3>
               <p className="text-sm text-muted-foreground mb-6">From <code className="text-primary/80 text-xs">connectors/local/</code>, <code className="text-primary/80 text-xs">plugins/</code>, and <code className="text-primary/80 text-xs">tools/</code></p>
-              <ToggleRow label="Python Code Executor" description="Sandboxed execution, max 2GB RAM, 30s timeout" enabled />
-              <ToggleRow label="JavaScript Executor" description="Node.js sandbox — js_executor.py" badge="v10" />
-              <ToggleRow label="Terminal / Shell" description="Controlled shell via connectors/local/terminal.py" />
-              <ToggleRow label="Filesystem Access" description="Read/write files scoped to project directory" enabled />
-              <ToggleRow label="Chrome Browser Control" description="Headless Chromium for web scraping" />
-              <ToggleRow label="Tavily Web Search" description="Real-time search via Tavily API" enabled />
-              <ToggleRow label="Google Search" description="Google search integration" />
-              <ToggleRow label="Calculator Tool" description="Arithmetic operations via tools/calculator_tool.py" enabled />
-              <ToggleRow label="Tool Intelligence (Auto-select)" description="Auto-picks best tool from message content — tool_intelligence.py" badge="v10" enabled />
+              <ToggleRow label="Python Code Executor" description="Sandboxed execution, max 2GB RAM, 30s timeout" settingKey="TOOL_PYTHON_ENABLED" enabled />
+              <ToggleRow label="JavaScript Executor" description="Node.js sandbox — js_executor.py" badge="v10" settingKey="TOOL_JS_ENABLED" />
+              <ToggleRow label="Terminal / Shell" description="Controlled shell via connectors/local/terminal.py" settingKey="TOOL_TERMINAL_ENABLED" />
+              <ToggleRow label="Filesystem Access" description="Read/write files scoped to project directory" settingKey="TOOL_FILESYSTEM_ENABLED" enabled />
+              <ToggleRow label="Chrome Browser Control" description="Headless Chromium for web scraping" settingKey="TOOL_BROWSER_ENABLED" />
+              <ToggleRow label="Tavily Web Search" description="Real-time search via Tavily API" settingKey="TOOL_TAVILY_ENABLED" enabled />
+              <ToggleRow label="Google Search" description="Google search integration" settingKey="TOOL_GOOGLE_ENABLED" />
+              <ToggleRow label="Calculator Tool" description="Arithmetic operations via tools/calculator_tool.py" settingKey="TOOL_CALCULATOR_ENABLED" enabled />
+              <ToggleRow label="Tool Intelligence (Auto-select)" description="Auto-picks best tool from message content — tool_intelligence.py" badge="v10" settingKey="TOOL_INTELLIGENCE_ENABLED" enabled />
             </Card>
           )}
 

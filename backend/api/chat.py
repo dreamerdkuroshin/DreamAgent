@@ -15,6 +15,15 @@ import uuid
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+# Key injection — detect API keys in chat messages and persist them
+try:
+    from backend.api.key_injector import detect_and_store_keys, analyze_uploaded_file as _analyze_file
+    _KEY_INJECTION_AVAILABLE = True
+except Exception as _ki_err:
+    _KEY_INJECTION_AVAILABLE = False
+    logger_placeholder = logging.getLogger(__name__)
+    logger_placeholder.warning(f"[Chat] Key injector not loaded: {_ki_err}")
+
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -98,10 +107,15 @@ def needs_complex_routing(prompt: str, context: dict) -> bool:
         re.IGNORECASE
     )
     API_KEY_RE = re.compile(
-        r'(gemini|openai|tavily|anthropic)[^:]*:\s*([A-Za-z0-9\-\_:]+)',
+        r'(?:my\s+)?(?:gemini|openai|tavily|anthropic|stripe|supabase|ahrefs|groq|huggingface|resend)'
+        r'[^:]*(?:key|token|api)\s*(?:is)?\s*:?\s*([A-Za-z0-9\-\_:.]{10,})',
         re.IGNORECASE
     )
-    if BOT_CMD_RE.search(p_lower) or STOP_BOT_RE.search(p_lower) or API_KEY_RE.search(p_lower):
+    KEY_VALUE_RE = re.compile(
+        r'\b(?:sk_(?:live|test)_|pk_(?:live|test)_|sk-ant-|tvly-|sb_publishable_|AIza|gsk_|hf_|re_)[A-Za-z0-9\-_]{10,}',
+        re.IGNORECASE
+    )
+    if BOT_CMD_RE.search(p_lower) or STOP_BOT_RE.search(p_lower) or API_KEY_RE.search(prompt) or KEY_VALUE_RE.search(prompt):
         return True
 
     return False
@@ -213,6 +227,30 @@ async def event_generator(
         yield f"id: 1\ndata: {json.dumps({'type': 'error', 'content': 'System initialization failed. Try again?'})}\n\n"
         yield f"id: 2\ndata: {json.dumps({'type': 'final', 'content': ''})}\n\n"
         return
+
+    # ── KEY INJECTION: detect API keys in the chat message ──────────────
+    if _KEY_INJECTION_AVAILABLE:
+        try:
+            inj = detect_and_store_keys(query)
+            if inj.get("found") and inj.get("reply"):
+                logger.info(f"[Chat] Key injection: stored {[f['env_var'] for f in inj['found']]}")
+                # Persist user message first
+                user_msg_id = await save_message_to_db(convo_id, "user", query) if convo_id else None
+                if user_msg_id:
+                    yield f"id: 0\ndata: {json.dumps({'type': 'user_persisted', 'msg_id': user_msg_id})}\n\n"
+                # Stream key injection confirmation reply
+                reply_text = inj["reply"]
+                idx = 0
+                for i in range(0, len(reply_text), 6):
+                    idx += 1
+                    yield f"id: {idx}\ndata: {json.dumps({'type': 'token', 'content': reply_text[i:i+6]})}\n\n"
+                    import asyncio as _aio; await _aio.sleep(0.004)
+                # Persist assistant reply
+                saved_id = await save_message_to_db(convo_id, "assistant", reply_text, "key_injector", "internal") if convo_id else None
+                yield f"id: {idx+1}\ndata: {json.dumps({'type': 'final', 'content': '', 'provider': 'key_injector', 'model': 'internal', 'persisted': saved_id is not None, 'msg_id': saved_id})}\n\n"
+                return
+        except Exception as _ki_exc:
+            logger.warning(f"[Chat] Key injection check failed: {_ki_exc}")
 
     # Persist User message to DB synchronously to ensure order
     user_msg_id = None

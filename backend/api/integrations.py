@@ -511,28 +511,30 @@ async def run_shell(req: ShellRequest, confirm: bool = Query(False)):
         "started_at": _ts(), "output": "", "exit_code": None,
     }
     try:
-        proc = await asyncio.create_subprocess_shell(
-            req.command, cwd=cwd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=req.timeout)
-            output = stdout.decode("utf-8", errors="replace") if stdout else ""
-            exit_code = proc.returncode
-        except asyncio.TimeoutError:
-            proc.kill()
-            output = f"[TIMEOUT] Command exceeded {req.timeout}s."
-            exit_code = -1
+        def _run_cmd():
+            return subprocess.run(
+                req.command, shell=True, cwd=cwd,
+                capture_output=True, text=True, timeout=req.timeout
+            )
+        
+        proc = await asyncio.to_thread(_run_cmd)
+        output = proc.stdout + proc.stderr
+        exit_code = proc.returncode
 
         SHELL_TASKS[task_id].update({"output": output, "exit_code": exit_code,
                                       "status": "done" if exit_code == 0 else "error"})
         return success_response({"task_id": task_id, "output": output,
                                   "exit_code": exit_code, "status": SHELL_TASKS[task_id]["status"]})
+    except subprocess.TimeoutExpired as e:
+        output = f"[TIMEOUT] Command exceeded {req.timeout}s.\n{e.stdout or ''}\n{e.stderr or ''}"
+        SHELL_TASKS[task_id].update({"output": output, "exit_code": -1, "status": "error"})
+        return error_response("Timeout")
     except Exception as e:
-        SHELL_TASKS[task_id].update({"status": "error", "output": str(e)})
-        logger.error("Shell task error: %s", e)
-        return error_response(str(e))
+        import traceback
+        err_msg = traceback.format_exc()
+        SHELL_TASKS[task_id].update({"status": "error", "output": err_msg})
+        logger.error("Shell task error: %s", err_msg)
+        return error_response(f"Shell Error: {repr(e)}")
 
 
 def _start_bot(platform: str, token: str, bot_id: str = None) -> dict:
@@ -555,6 +557,9 @@ def _start_bot(platform: str, token: str, bot_id: str = None) -> dict:
             "error": f"Bot script '{script}' not found. Please create it at {script_path}",
             "started": False,
         }
+
+    if len(RUNNING_BOTS) >= 25:
+        return {"error": "Maximum 25 concurrent bots active. Please stop some bots first.", "started": False}
 
     if track_key in RUNNING_BOTS:
         return {"already_running": True, "bot_id": track_key}

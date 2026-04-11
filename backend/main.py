@@ -172,7 +172,7 @@ def healthz():
     }
 
 
-@app.get("/system-status")
+@app.get("/api/system-status")
 async def system_status():
     from backend.core.dragonfly_manager import dragonfly
     from backend.core.execution_mode import execution_state
