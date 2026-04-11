@@ -35,8 +35,11 @@ _ALL_PROVIDERS = [
     # ── Tier 2: Premium cloud LLMs ─────────────────────────────────────────────
     ("openai",      "https://api.openai.com/v1",
                      "OPENAI_API_KEY",      "gpt-4o-mini"),
+    # NOTE: Anthropic uses a native Messages API — handled by _call_anthropic(), NOT /chat/completions
     ("anthropic",   "https://api.anthropic.com/v1",
                      "ANTHROPIC_API_KEY",   "claude-3-haiku-20240307"),
+    ("anthropic",   "https://api.anthropic.com/v1",
+                     "CLAUDE_API_KEY",      "claude-3-haiku-20240307"),
     ("deepseek",    "https://api.deepseek.com",
                      "DEEPSEEK_API_KEY",    "deepseek-chat"),
     ("mistral",     "https://api.mistral.ai/v1",
@@ -49,7 +52,12 @@ _ALL_PROVIDERS = [
     ("perplexity",  "https://api.perplexity.ai",
                      "PERPLEXITY_API_KEY",  "llama-3.1-sonar-small-128k-online"),
     # ── Tier 4: Router / Aggregator ────────────────────────────────────────────
-    ("openrouter",  "https://openrouter.ai/api/v1",
+    # ── Tier 4: HuggingFace (native OpenAI-compat Inference API v1) ────────────
+    # Supports Mistral, Llama, Phi, Falcon, Zephyr, and 100k+ HF models directly
+    ("huggingface", "https://api-inference.huggingface.co/v1",
+                     "HUGGINGFACE_API_KEY", "mistralai/Mistral-7B-Instruct-v0.3"),
+    # ── Tier 5: Router / Aggregator (proxies ALL providers) ────────────────────
+        ("openrouter",  "https://openrouter.ai/api/v1",
                      "OPENROUTER_API_KEY",  "openai/gpt-4o-mini"),
     # ── Tier 5: Asian / Regional providers ─────────────────────────────────────
     ("qwen",        "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -64,7 +72,16 @@ _ALL_PROVIDERS = [
                      "KIMI_API_KEY",        "moonshot-v1-8k"),
 ]
 
-_PLACEHOLDER_VALUES = {"", "env", "your_api_key", "placeholder", "none", "null"}
+# Providers that have NO direct API — must be accessed via OpenRouter.
+# DreamAgent stores the key but routes via OpenRouter model ID strings.
+# Usage: pass openrouter key + model like "ibm/granite-3-8b-instruct" etc.
+_OPENROUTER_ONLY = {
+    "ibm",      # IBM Granite      — openrouter: ibm/granite-3-8b-instruct
+    "amazon",   # Amazon Nova      — openrouter: amazon/nova-pro-v1
+    "replit",   # Replit Code      — openrouter: replit/replit-code-v1-3b
+    "mimo",     # Mimo             — openrouter: mimo/mimo-7b
+    "hermes",   # Hermes (Nous)    — openrouter: nousresearch/hermes-3-llama-3.1-405b
+}
 
 # ─── Circuit Breaker ──────────────────────────────────────────────────────────
 CIRCUIT_BREAKER_THRESHOLD = 3   # failures before flagging 'down'
@@ -439,10 +456,59 @@ class UniversalProvider(LLMProvider):
         yield "Error: All providers exhausted after 3 attempts each."
 
     # ── Helpers ────────────────────────────────────────────────────────────────
+    def _call_anthropic(self, api_key: str, model: str, messages: list,
+                        _provider_name: str = "anthropic") -> str:
+        """
+        Native Anthropic Messages API handler.
+        Uses x-api-key + anthropic-version — NOT Bearer auth or /chat/completions.
+        """
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        # Convert OpenAI-style messages; Anthropic requires system separate
+        system_msg = ""
+        conv_messages = []
+        for m in messages:
+            if m["role"] == "system":
+                system_msg = m["content"]
+            else:
+                conv_messages.append({"role": m["role"], "content": m["content"]})
+
+        payload: dict = {"model": model, "messages": conv_messages, "max_tokens": 4096}
+        if system_msg:
+            payload["system"] = system_msg
+
+        try:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers=headers, json=payload, timeout=60
+            )
+            if resp.status_code == 429:
+                _record_provider_failure(_provider_name)
+                return "Error: Anthropic rate limited (429)"
+            if resp.status_code in (400, 404):
+                return f"Error: {resp.status_code} - {resp.text}"
+            resp.raise_for_status()
+            _record_provider_success(_provider_name)
+            content_blocks = resp.json().get("content", [])
+            return "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
+        except requests.exceptions.Timeout:
+            _record_provider_failure(_provider_name)
+            return "Error: Anthropic request timed out after 60s"
+        except Exception as e:
+            _record_provider_failure(_provider_name)
+            return f"Error: {str(e)}"
+
     def _call_openai_compat(
         self, base_url: str, api_key: str, model: str, messages: list,
         _provider_name: str = ""
     ) -> str:
+        # ── Branch: Anthropic uses its own Messages API, not /chat/completions ──
+        if _provider_name == "anthropic":
+            return self._call_anthropic(api_key, model, messages, _provider_name)
+
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": model, "messages": messages}
         try:
