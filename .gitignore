@@ -1,7 +1,25 @@
-# DreamAgent .gitignore
-# Fix #31: Added .env so secrets are not committed to version control
+# ─── DreamAgent .gitignore ───────────────────────────────────────────────────
+# NEVER commit secrets, databases, or user data to version control.
 
-# Python
+# ── Secrets & Credentials ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+client_secret*.json
+google_credentials*.json
+service_account*.json
+*_credentials.json
+credentials.json
+
+# ── Databases ───────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+dreamagent.db
+
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -12,52 +30,63 @@ __pycache__/
 dist/
 build/
 *.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyi
 
-# Environment — NEVER commit secrets
-.env
-.env.*
-!.env.example
-
-# Virtual environment
+# ── Virtual Environment ──────────────────────────────────────────────────────
 .venv/
 venv/
 env/
+ENV/
 
-# Database
-*.db
-*.sqlite3
-
-# Logs
+# ── Logs ─────────────────────────────────────────────────────────────────────
 logs/
 *.log
 output.log
+out.txt
 backend_err.txt
 backend_error_log.txt
-backend_refactor_test*.log
 test_output.txt
 error_log.txt
 dreamagent_run.log
+full_models_list*.txt
+models_list*.txt
 
-# Test outputs
+# ── User Data & Runtime Files ────────────────────────────────────────────────
+data/
+tmp/
+scratch/
+builder_output/
+*.webp
+
+# ── Test Artifacts ───────────────────────────────────────────────────────────
 test_results.json
 test_res_final.txt
-full_models_list*.txt
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *~
 
-# Docker volumes
-data/
-tmp/
-
-# WebP screenshots
-*.webp
-
-# Node/Frontend
+# ── Node / Frontend ──────────────────────────────────────────────────────────
 node_modules/
 .next/
 dist/
 .cache/
+*.tsbuildinfo
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+*.tar
+
+# ── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Windows ──────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
