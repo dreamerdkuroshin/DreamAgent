@@ -401,6 +401,28 @@ class UniversalProvider(LLMProvider):
                 time.sleep(1)
         yield "Error: All providers exhausted after 3 attempts each."
 
+    async def _astream_anthropic(self, api_key: str, model: str, clean_messages: list):
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        
+        system_msg = anthropic.NOT_GIVEN
+        conv_messages = []
+        for m in clean_messages:
+            if m["role"] == "system":
+                system_msg = m["content"]
+            else:
+                conv_messages.append({"role": m["role"], "content": str(m["content"])})
+        
+        async with client.messages.stream(
+            model=model,
+            messages=conv_messages,
+            max_tokens=4096,
+            system=system_msg
+        ) as stream:
+            async for event in stream:
+                if event.type == "content_block_delta":
+                    yield event.delta.text
+
     async def astream(self, messages: List[dict]):
         """True asynchronous streaming via the first available provider."""
         import asyncio
@@ -417,6 +439,23 @@ class UniversalProvider(LLMProvider):
 
         for name, base_url, api_key, default_model in chain:
             model = self.model or default_model
+            
+            if name == "anthropic":
+                success = False
+                try:
+                    async for token in self._astream_anthropic(api_key, model, clean):
+                        success = True
+                        self.final_provider = name
+                        self.final_model = model
+                        yield token
+                    if success:
+                        return
+                except Exception as e:
+                    logger.warning(f"[LLM astream] anthropic exception: {e}")
+                    if success:
+                        return
+                continue
+
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {"model": model, "messages": clean, "stream": True}
 
@@ -440,7 +479,7 @@ class UniversalProvider(LLMProvider):
                                             if token:
                                                 success = True
                                                 self.final_provider = name
-                                                self.final_model = model  # fixed: was undefined model_to_try
+                                                self.final_model = model
                                                 yield token
                                         except Exception:
                                             continue

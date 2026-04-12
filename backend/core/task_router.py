@@ -86,11 +86,9 @@ async def dispatch_task(task_payload: Dict[str, Any]) -> str:
     if execution_state.force_redis_down:
         mode = "local"
 
-    # KEY FIX (Root Cause 2): In 'auto' mode, prefer the LOCAL asyncio queue
-    # unless EXECUTION_MODE is explicitly set to 'distributed'.
-    # This prevents tasks from being pushed to Redis queues that no distributed
-    # worker process is listening on (common in dev/Windows environments).
-    use_distributed = (mode == "distributed") or (mode == "auto" and client and os.environ.get("EXECUTION_MODE", "auto").lower() == "distributed")
+    # Enforce Distributed Mode if Redis is active.
+    # This ensures genuine queue persistence, job recovery, and enables horizontal worker scaling.
+    use_distributed = (mode == "distributed") or (mode == "auto" and client is not None)
 
     if use_distributed:
         if not client:

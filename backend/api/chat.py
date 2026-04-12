@@ -206,11 +206,7 @@ async def event_generator(
         from backend.orchestrator.priority_router import detect_intent
         fast_intent = detect_intent(query)
         if fast_intent == "builder" and not (is_recall_trigger(query) and pco_context.get("builder_preferences")):
-            from backend.core.agent_executor import create_task
-            create_task("builder", query, task_id=task_id, file_ids=file_ids, convo_id=convo_id, provider=provider, model=model)
-            yield f"id: 1\ndata: {json.dumps({'type': 'token', 'content': '🚀 Building your website...'})}\n\n"
-            yield f"id: 2\ndata: {json.dumps({'type': 'final', 'content': '', 'provider': provider, 'model': model})}\n\n"
-            return
+            speed = "complex"
             
         if needs_complex_routing(query, pco_context):
             # Exception: if it's a builder recall query AND we have preferences, DO NOT route to complex.

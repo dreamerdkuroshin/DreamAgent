@@ -358,7 +358,7 @@ NOTION_CLIENT_SECRET=
 # ─── Infrastructure ───────────────────────────────────────────────
 REDIS_URL=redis://localhost:6379/0
 BACKEND_URL=http://localhost:8001
-FRONTEND_DOMAIN=http://localhost:5173
+FRONTEND_DOMAIN=http://localhost:5000
 
 # ─── Security ─────────────────────────────────────────────────────
 # Auto-generated on first run. DO NOT share.

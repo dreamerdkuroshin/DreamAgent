@@ -421,14 +421,39 @@ async def background_agent_loop(
                     "agent": "controller"
                 })
 
-            result = await controller.run(
-                query=effective_query,
-                task_id=task_id,
-                publish=_save_step,
-                bot_id=bot_id,
-                user_id=user_id,
-                file_ids=file_ids
-            )
+            from backend.orchestrator.priority_router import detect_intent
+            intent = detect_intent(effective_query)
+            
+            if intent == "builder":
+                from backend.builder.multi_agent_builder import multi_agent_build
+                from backend.core.context_manager import get_agent_context
+                
+                context = get_agent_context(user_id=user_id, bot_id=bot_id)
+                prefs = context.get("builder_preferences", {})
+                
+                files, spec = await multi_agent_build(
+                    user_request=effective_query,
+                    prefs=prefs,
+                    provider=provider,
+                    model=model,
+                    publish_event=_save_step
+                )
+                
+                md_response = "🚀 **Builder Pipeline Complete!**\n\nHere are your generated files:\n\n"
+                for fname, content in files.items():
+                    ext = fname.split('.')[-1]
+                    md_response += f"### {fname}\n```{ext}\n{content}\n```\n\n"
+                result = md_response
+            else:
+                result = await controller.run(
+                    query=effective_query,
+                    task_id=task_id,
+                    publish=_save_step,
+                    bot_id=bot_id,
+                    user_id=user_id,
+                    file_ids=file_ids
+                )
+            
             all_results.append(result)
             previous_output = trim_context(result)
 
