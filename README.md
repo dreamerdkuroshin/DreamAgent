@@ -77,7 +77,7 @@ cp .env.example .env
 ```
 
 > **💡 Bootstrap Fallback:** If your primary key hits a rate limit, DreamAgent gracefully cycles through your other `.env` providers to guarantee uptime.
-
+(**if u don't do this step then ok u do step 3**) *
 ### Step 3: Launch
 ```cmd
 start.bat
