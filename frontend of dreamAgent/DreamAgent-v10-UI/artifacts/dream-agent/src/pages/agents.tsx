@@ -109,8 +109,7 @@ function AgentCard({ agent }: { agent: any }) {
     }
   });
 
-  const typeKey = agent.name.split(" ")[0];
-  const typeInfo = AGENT_TYPES.find(t => t.value === typeKey) || AGENT_TYPES[2];
+  const typeInfo = AGENT_TYPES.find(t => t.value === agent.type) || AGENT_TYPES.find(t => t.value === agent.name.split(" ")[0]) || AGENT_TYPES[2];
   const IconComp = typeInfo.icon;
 
   const stateColor: any = ({
@@ -128,7 +127,7 @@ function AgentCard({ agent }: { agent: any }) {
           </div>
           <div>
             <h3 className="font-display font-bold text-sm text-foreground leading-tight">{agent.name}</h3>
-            <p className="text-xs font-mono text-muted-foreground mt-0.5">{agent.model}</p>
+            <p className="text-xs font-mono text-muted-foreground mt-0.5">{agent.model_name || agent.model}</p>
           </div>
         </div>
         <Badge variant={stateColor}>{agent.status}</Badge>
@@ -143,11 +142,11 @@ function AgentCard({ agent }: { agent: any }) {
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 text-center">
           <div className="text-xs text-muted-foreground">Tasks</div>
-          <div className="font-bold text-sm text-foreground">{agent.taskCount}</div>
+          <div className="font-bold text-sm text-foreground">{agent.task_count ?? agent.taskCount ?? 0}</div>
         </div>
         <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 text-center">
           <div className="text-xs text-muted-foreground">Chats</div>
-          <div className="font-bold text-sm text-foreground">{agent.conversationCount}</div>
+          <div className="font-bold text-sm text-foreground">{agent.conversation_count ?? agent.conversationCount ?? 0}</div>
         </div>
       </div>
 
@@ -212,6 +211,7 @@ function CreateAgentModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
     mutate({
       data: {
         name: data.name,
+        type: data.agentType,
         description: data.description || selectedTypeInfo.description,
         model: data.model,
         systemPrompt: data.systemPrompt || `You are a ${data.agentType} agent. ${selectedTypeInfo.description}`,
