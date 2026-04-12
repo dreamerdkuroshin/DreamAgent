@@ -23,6 +23,16 @@ from backend.core.dragonfly_client import get_dragonfly
 logger = logging.getLogger(__name__)
 
 
+_PLACEHOLDER_VALUES = {
+    "your_openai_api_key_here",
+    "your_gemini_api_key_here",
+    "your_anthropic_api_key_here",
+    "your_groq_api_key_here",
+    "insert_key_here",
+    "sk-xxxxx",
+    ""
+}
+
 # ─── Provider Fallback Chain ───────────────────────────────────────────────────
 # All providers that speak the OpenAI-compatible /chat/completions format.
 # Each entry: (display_name, base_url, env_key, default_model)

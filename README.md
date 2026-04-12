@@ -85,6 +85,10 @@ start.bat
 This starts:
 - 🚀 **DreamAgent Backend** on `http://localhost:8001`
 - 🎨 **DreamAgent Dashboard** on `http://localhost:5000`
+after this steps if not start dragonfly then run this command
+```
+podman-compose.yml
+```
 
 ### Step 4: Start Chatting with Your Agent
 
