@@ -60,6 +60,14 @@ Each agent runs on your choice of model — GPT-4o, Claude, Gemini, Groq, DeepSe
 ```bash
 git clone https://github.com/dreamerdkuroshin/DreamAgent.git
 cd DreamAgent
+```
+
+> 💡 **No Git Installed?** If you get the error `'git' is not recognized as an internal or external command`, you can download the project without Git:
+> 1. Go to the [DreamAgent GitHub page](https://github.com/dreamerdkuroshin/DreamAgent)
+> 2. Click the green **Code** button and select **Download ZIP**.
+> 3. Extract the ZIP file, open the extracted `DreamAgent-main` folder in your terminal, and continue to the next steps.
+
+```bash
 
 # Install Python dependencies
 pip install -r requirements.txt
