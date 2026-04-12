@@ -12,5 +12,10 @@ echo Starting DreamAgent Frontend...
 echo ========================================================
 start "DreamAgent UI" cmd /c "cd "frontend of dreamAgent/DreamAgent-v10-UI" && npm run dev"
 
-echo Done! Both services are spinning up in background windows.
+echo ========================================================
+echo Starting Distributed Worker...
+echo ========================================================
+start "DreamAgent Worker" cmd /c "python backend\worker.py"
+
+echo Done! Services are spinning up in background windows.
 pause
