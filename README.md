@@ -86,6 +86,29 @@ This starts:
 - 🚀 **DreamAgent Backend** on `http://localhost:8001`
 - 🎨 **DreamAgent Dashboard** on `http://localhost:5000`
 
+### Step 4: Start Chatting with Your Agent
+
+Once the app is running at `http://localhost:5000`, follow these steps to have your first AI conversation:
+
+#### 4a — Add Your API Keys (Settings)
+1. Open **Settings** → **API Keys** tab
+2. Enter at least one provider key (e.g. OpenAI, Groq, Gemini, Anthropic)
+3. Click **Verify** — the key turns ✅ green when valid
+4. Save
+
+> 💡 **Tip:** You don't need all providers — even a single free [Groq](https://console.groq.com) key is enough to start.
+
+#### 4b — Create an Agent (Agents Page)
+1. Go to **Agents** → click **New Agent**
+2. Choose an **Agent Type** (e.g. Worker, Coder, Research)
+3. Select the **Model** from your verified providers
+4. Give it a name (e.g. `Research-01`) and click **Create Agent**
+
+#### 4c — Chat!
+1. Go to the **Chat** page
+2. Select your newly created agent from the sidebar
+3. Type your message and hit **Send** — responses stream back in real time ⚡
+
 ---
 
 ## 🏗️ Architecture
@@ -127,6 +150,8 @@ graph TD
 - **Multi-Tier Queues**: Simple/Medium/Complex task routing with priority scheduling
 - **Hybrid Workers**: Local `asyncio` queues upgrading automatically to Dragonfly/Redis at scale
 - **Watchdog Recovery**: Stuck tasks auto-recovered with exponential backoff retries
+
+> 💡 **Where is Dragonfly?** You might notice `start.bat` doesn't run Dragonfly. This is intentional! DreamAgent uses **Self-Healing Fallback** logic. If Dragonfly/Redis isn't detected, it gracefully degrades to using purely local Python `asyncio` memory queues. The platform runs perfectly without Dragonfly for local/personal use. If you want distributed scale, simply spin up the provided `podman-compose.yml`.
 
 ### 💬 Real-Time Chat
 - **SSE Streaming**: Token-by-token streaming from any provider
