@@ -57,6 +57,15 @@ class HybridRouter(IntentRouter):
         if llm_result.confidence > 0.75:
             return llm_result
 
-        # Step 3 - Unsure, so ASK USER instead of guessing
-        logger.info("[HybridRouter] LLM unsure (%.0f%%), returning clarification.", llm_result.confidence * 100)
-        return RouteDecision("clarification", 1.0, {"source": "hybrid"})
+        # Step 3 — LLM also unsure. Use keyword best-guess rather than annoying clarification.
+        # Only ask for clarification if keyword router had absolutely zero signal.
+        if kw_result.confidence > 0.0:
+            logger.info(
+                "[HybridRouter] LLM unsure (%.0f%%), falling back to keyword best-guess: %s (%.0f%%)",
+                llm_result.confidence * 100, kw_result.intent, kw_result.confidence * 100
+            )
+            return kw_result
+
+        # Both routers have no signal — default to autonomous chat rather than clarification
+        logger.info("[HybridRouter] Both routers uncertain, defaulting to autonomous.")
+        return RouteDecision("autonomous", 0.60, {"source": "hybrid", "fallback": "default"})

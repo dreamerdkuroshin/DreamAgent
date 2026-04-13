@@ -30,22 +30,36 @@ def classify_task(query: str, file_ids: str) -> str:
     text = query.lower()
     word_count = len(text.split())
 
-    # 1. Always prioritize coding/analytical tasks to heavy workers
-    heavy_keywords = {"code", "debug", "refactor", "analyze", "data", "report"}
+    # 1. Builder / creator intent → always complex regardless of word count
+    #    "Build an X", "Create a Y", "Design a Z", "Launch a ..." etc.
+    builder_keywords = {
+        "build", "create", "design", "launch", "make", "develop", "generate",
+        "set up", "start", "write", "plan", "deploy", "implement",
+    }
+    if any(k in text for k in builder_keywords):
+        return QUEUE_COMPLEX
+
+    # 2. Multi-day / multi-step plans → always complex
+    if any(k in text for k in ["day 1", "day 2", "step 1", "phase 1", "week 1"]):
+        return QUEUE_COMPLEX
+
+    # 3. Coding / analytical tasks → complex
+    heavy_keywords = {"code", "debug", "refactor", "analyze", "data", "report", "script", "api"}
     if any(k in text for k in heavy_keywords) and word_count > 6:
         return QUEUE_COMPLEX
 
-    # 2. Files implies reading, embedding, or parsing — medium effort
+    # 4. Files implies reading, embedding, or parsing — medium effort
     if file_ids:
         return QUEUE_MEDIUM
 
-    # 3. Word-count based classification (more reliable than char count)
+    # 5. Word-count based classification (fallback)
     if word_count <= 10:
         return QUEUE_SIMPLE
     elif word_count > 50 or len(query) > 500:
         return QUEUE_COMPLEX
 
     return QUEUE_MEDIUM
+
 
 
 async def dispatch_task(task_payload: Dict[str, Any]) -> str:

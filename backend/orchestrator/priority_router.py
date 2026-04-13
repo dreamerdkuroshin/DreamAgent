@@ -98,6 +98,16 @@ _AUTONOMOUS_WORDS = {
     "schedule", "every hour", "every day", "background task",
 }
 
+_DEBATE_WORDS = {
+    "debate", "argue", "should i", "better option", "vs", "versus",
+    "compare", "pros and cons", "which is better",
+}
+
+_RESEARCH_WORDS = {
+    "research", "find viral", "analyze trends", "deep dive", "investigate",
+    "competitors", "market analysis", "who are", "trends",
+}
+
 _CHAT_ONLY = {
     "hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "bye",
     "good morning", "good night", "what's up", "how are you",
@@ -157,8 +167,18 @@ def detect_intent(query: str) -> str:
     if any(kw in q for kw in _AUTONOMOUS_WORDS):
         logger.debug("[PriorityRouter] intent=autonomous")
         return "autonomous"
+        
+    # ── PRIORITY 8: DEBATE ──────────────────────────────────────────────────
+    if words & _DEBATE_WORDS or "should i" in q:
+        logger.debug("[PriorityRouter] intent=debate")
+        return "debate"
+        
+    # ── PRIORITY 9: RESEARCH ────────────────────────────────────────────────
+    if words & _RESEARCH_WORDS or "research" in q:
+        logger.debug("[PriorityRouter] intent=research")
+        return "research"
 
-    # ── PRIORITY 8: CHAT ONLY (short greetings) ─────────────────────────────
+    # ── PRIORITY 10: CHAT ONLY (short greetings) ─────────────────────────────
     if len(q.split()) <= 6 and words & _CHAT_ONLY:
         logger.debug("[PriorityRouter] intent=chat (greeting)")
         return "chat"
@@ -182,6 +202,8 @@ def detect_intent_with_confidence(query: str) -> tuple[str, float]:
         "builder": 0.92,
         "coding": 0.85,
         "autonomous": 0.80,
+        "debate": 0.90,
+        "research": 0.85,
         "chat": 0.50,
         "unknown": 0.10,
     }

@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger("dreamagent.orchestrator")
 
-
 class TaskLogger:
     """
     Context-aware logger.

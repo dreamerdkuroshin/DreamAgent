@@ -150,6 +150,10 @@ def _get_user_session_cached(user_id: str) -> Dict[str, Dict]:
                 raw_key = decrypt_token(up.api_key_encrypted)
             except Exception:
                 continue
+            
+            # Skip empty or placeholder keys (e.g. from key rotation or dummy values)
+            if not raw_key or raw_key in _PLACEHOLDER_VALUES:
+                continue
                 
             # Get allowed model IDs
             model_ids = {m.model_id for m in up.models}
@@ -158,6 +162,7 @@ def _get_user_session_cached(user_id: str) -> Dict[str, Dict]:
                 "key": raw_key,
                 "models": model_ids
             }
+
             
     SESSION_CACHE[user_id] = session_data
     return session_data

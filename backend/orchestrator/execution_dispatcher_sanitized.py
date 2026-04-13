@@ -318,9 +318,11 @@ class ExecutionDispatcher:
     ) -> str:
         """5-stage Multi-Agent Pipeline: Planner → Coder → Tester → Fixer → Reviewer."""
         import asyncio
+        import os
         from backend.agents.pipeline import MultiAgentPipeline
 
-        PIPELINE_TIMEOUT = 45  # seconds
+        # 5 agents × ~30s LLM call each = 150s minimum. Give 5 minutes headroom.
+        PIPELINE_TIMEOUT = int(os.environ.get("PIPELINE_TIMEOUT_SECONDS", 300))
 
         publish({
             "type": "agent", "agent": "pipeline", "role": "system",

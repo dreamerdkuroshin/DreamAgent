@@ -78,18 +78,16 @@ class AutonomousManager:
 
                 if fail_count >= MAX_FAILURES:
                     yield AgentEvent(
-                        type="final",
-                        message="🔴 HARD STOP: Autonomous loops maxed due to repeated external tool failures."
+                        type="error",
+                        message=f"🔴 Step failed repeatedly. Skipping to next step to maintain progress."
                     ).model_dump()
-                    return  
+                    step_count += 1
+                    fail_count = 0
+                    continue  # Skip step instead of hard-stopping array
 
                 # 🔁 Self-recovery Reflection Map
                 fix_prompt = f"Fix this failed step action based on error: {str(e)} \nOriginal action: {step.get('action')}"
-                fix = await self.provider.get_chat_completion(
-                    user_id=user_id,
-                    bot_id=bot_id,
-                    messages=[{"role": "user", "content": fix_prompt}]
-                )
+                fix = await self.provider.generate([{"role": "user", "content": fix_prompt}])
                 step["action"] = fix
                 
                 # Emit recovery logic notification

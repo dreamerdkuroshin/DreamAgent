@@ -66,11 +66,14 @@ def encrypt_token(token: str) -> str:
 
 
 def decrypt_token(encrypted_token: str) -> str:
-    """Decrypts a Fernet string."""
+    """Decrypts a Fernet string. Returns empty string on failure (e.g. rotated key)."""
     if not encrypted_token:
         return ""
     try:
         return _FERNET.decrypt(encrypted_token.encode("utf-8")).decode("utf-8")
     except Exception as e:
-        logger.error("Failed to decrypt API key! Was the ENCRYPTION_KEY lost or changed?")
-        raise ValueError("Decryption failed. API Key corrupted.") from e
+        logger.warning(
+            "Failed to decrypt API key — key may have been rotated or regenerated. "
+            "Re-save your API keys in Settings to re-encrypt them with the current key."
+        )
+        return ""  # Return empty so callers fall back to env-var lookup

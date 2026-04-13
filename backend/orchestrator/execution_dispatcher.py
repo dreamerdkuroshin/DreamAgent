@@ -103,6 +103,14 @@ class ExecutionDispatcher:
         # ── Autonomous mode ──────────────────────────────────────────────
         if intent == "autonomous":
             return await self._handle_autonomous(query, task_ctx, publish, convo_id)
+            
+        # ── Debate Engine ────────────────────────────────────────────────
+        if intent == "debate":
+            return await self._handle_debate(query, task_ctx, publish)
+            
+        # ── Deep Research ────────────────────────────────────────────────
+        if intent == "research":
+            return await self._handle_research(query, task_ctx, publish)
 
         # ── Multi-Agent Pipeline (tool / coding tasks) ───────────────────
         if intent == "tool":
@@ -448,9 +456,11 @@ class ExecutionDispatcher:
     ) -> str:
         """5-stage Multi-Agent Pipeline: Planner → Coder → Tester → Fixer → Reviewer."""
         import asyncio
+        import os
         from backend.agents.pipeline import MultiAgentPipeline
 
-        PIPELINE_TIMEOUT = 45  # seconds
+        # 5 agents × ~30s LLM call each = 150s minimum. Give 5 minutes headroom.
+        PIPELINE_TIMEOUT = int(os.environ.get("PIPELINE_TIMEOUT_SECONDS", 300))
 
         publish({
             "type": "agent", "agent": "pipeline", "role": "system",
@@ -520,3 +530,31 @@ class ExecutionDispatcher:
         await bg_worker.submit(_background_pco_update())
 
         return final_content
+
+    async def _handle_debate(self, query: str, task_ctx: TaskContext, publish: Callable) -> str:
+        """Handle debate queries by routing to the DebateAgent."""
+        from backend.agents.debate_agent import DebateAgent
+        from backend.llm.universal_provider import UniversalProvider
+        llm = UniversalProvider(provider=self._provider, model=self._model)
+        agent = DebateAgent(llm)
+        
+        result = await agent.debate(query, publish=publish)
+        publish({"type": "final", "content": result})
+        return result
+        
+    async def _handle_research(self, query: str, task_ctx: TaskContext, publish: Callable) -> str:
+        """Handle research queries by routing to the ResearchAgent."""
+        from backend.agents.research_agent import ResearchAgent
+        from backend.llm.universal_provider import UniversalProvider
+        llm = UniversalProvider(provider=self._provider, model=self._model)
+        agent = ResearchAgent(llm)
+        
+        publish({
+            "type": "agent", "agent": "research", "role": "system",
+            "status": "running", "content": "🔎 Engaging Deep Research..."
+        })
+        
+        result = await agent.research(query, depth="deep")
+        publish({"type": "final", "content": result})
+        return result
+

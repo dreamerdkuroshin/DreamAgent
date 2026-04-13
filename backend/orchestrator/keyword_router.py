@@ -87,6 +87,10 @@ class KeywordRouter(IntentRouter):
             return RouteDecision("chat", 0.85, {"source": "priority_router", "reason": "direct_code"})
         if intent == "autonomous":
             return RouteDecision("autonomous", confidence, {"source": "priority_router"})
+        if intent == "debate":
+            return RouteDecision("debate", confidence, {"source": "priority_router"})
+        if intent == "research":
+            return RouteDecision("research", confidence, {"source": "priority_router"})
 
         # ── Default: low-confidence chat (signals LLM fallback needed) ────────
         return RouteDecision("chat", 0.50, {"source": "keyword"})

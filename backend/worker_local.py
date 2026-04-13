@@ -82,7 +82,7 @@ async def local_worker_loop():
                                 model=model, 
                                 file_ids=file_ids
                             ), 
-                            timeout=60.0  # Reduced to 60s to match dragonfly worker
+                            timeout=600.0  # 10 min: pipelines need up to 5 min with chained LLM calls
                         )
                         is_success = True
                         break  # Success, exit retry loop

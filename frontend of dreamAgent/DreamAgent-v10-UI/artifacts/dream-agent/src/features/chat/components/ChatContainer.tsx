@@ -25,9 +25,8 @@ interface ChatContainerProps {
 }
 
 const MODES = [
-  { id: "Lite", icon: Zap, color: "text-emerald-400", active: "bg-emerald-400/20 border-emerald-400/50 text-emerald-400" },
-  { id: "Standard", icon: Brain, color: "text-primary", active: "bg-primary/20 border-primary/50 text-primary" },
-  { id: "Ultra", icon: Network, color: "text-secondary", active: "bg-secondary/20 border-secondary/50 text-secondary" },
+  { id: "Fast", label: "⚡ Fast", icon: Zap, active: "bg-emerald-400/20 border-emerald-400/50 text-emerald-400", desc: "Instant responses. May skip verification." },
+  { id: "Truth", label: "🧠 Truth", icon: ShieldCheck, active: "bg-primary/20 border-primary/50 text-primary", desc: "Slower, but verifies sources, detects contradictions, and avoids hallucinations." },
 ];
 
 export function ChatContainer({
@@ -105,20 +104,25 @@ export function ChatContainer({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
+        <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-xl border border-white/5 relative group">
           {MODES.map((m: any) => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id as any)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all duration-300 uppercase tracking-wider",
-                mode === m.id
-                  ? m.active
-                  : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
-              )}
-            >
-              <m.icon className="w-3 h-3" /> {m.id}
-            </button>
+            <div key={m.id} className="relative group/btn">
+              <button
+                onClick={() => setMode(m.id as any)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all duration-300 uppercase tracking-wider",
+                  mode === m.id
+                    ? m.active
+                    : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                )}
+              >
+                {m.label}
+              </button>
+              {/* Tooltip */}
+              <div className="absolute top-full right-0 mt-2 hidden group-hover/btn:block w-48 p-2 bg-black/90 border border-white/10 rounded-lg shadow-xl z-50 text-[10px] text-muted-foreground leading-tight">
+                {m.desc}
+              </div>
+            </div>
           ))}
         </div>
       </div>

@@ -85,7 +85,7 @@ class DistributedWorker:
                 provider=provider, 
                 model=model, 
                 file_ids=file_ids
-            ), timeout=60.0)
+            ), timeout=600.0)  # 10 min: multi-agent pipelines take 3-5 min with real LLMs
 
             # 4. Success -> Mark Complete State
             WorkerState.transition(task_id, SUCCESS)

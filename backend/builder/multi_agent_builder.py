@@ -63,20 +63,37 @@ class BuilderOrchestrator:
         # 1. PLANNER
         if not plan:
             self._emit("planning", PROGRESS_MAP["planning"], f"🧠 Planner analyzing task (Attempt {attempt})...")
-            # The planner in backend/agents/planner.py returns a dictionary natively
             plan_result = await self.planner.plan(user_request)
+            
+            # Guard: ensure plan_result is always a dict (never bool/None)
+            if not isinstance(plan_result, dict):
+                logger.warning("[BuilderOrchestrator] Planner returned non-dict output (%s), using heuristic fallback.", type(plan_result))
+                plan_result = {"goal": user_request, "steps": [], "requires_plan": True}
             
             # Mix with user preferences to create the builder spec format
             plan = {
-                "project_name": plan_result.get("goal", "Project"),
-                "files_to_generate": ["index.html", "style.css", "app.js", "main.py"], # Example defaults if not specified
-                "sections": ["Hero", "Features", "Footer"], 
+                "project_name": plan_result.get("goal", user_request[:60]),
+                "files_to_generate": ["index.html", "style.css", "app.js", "main.py"],
+                "sections": ["Hero", "Features", "Footer"],
                 "color_palette": ["#00f0ff", "#8b5cf6", "#0a0a12"],
                 "font": "Inter",
-                "key_features": plan_result.get("steps", [])
+                "key_features": plan_result.get("steps", [user_request])
             }
             # override with prefs if needed
             plan.update(prefs.get("spec", {}))
+        
+        # Guard: ensure plan is always a dict before passing downstream
+        if not isinstance(plan, dict):
+            logger.error("[BuilderOrchestrator] plan is not a dict (%s), resetting to defaults.", type(plan))
+            plan = {
+                "project_name": user_request[:60],
+                "files_to_generate": ["index.html", "style.css", "app.js"],
+                "sections": ["Hero", "Features", "Footer"],
+                "color_palette": ["#00f0ff", "#8b5cf6", "#0a0a12"],
+                "font": "Inter",
+                "key_features": [user_request]
+            }
+
 
         # 2. GENERATION (UI & Backend)
         if not current_files:

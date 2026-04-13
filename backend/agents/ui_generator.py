@@ -16,7 +16,12 @@ class UIGeneratorAgent(BaseAgent):
 
     async def run(self, plan: Dict[str, Any], publish_event: Optional[Callable] = None) -> Dict[str, str]:
         files_to_gen = plan.get("files_to_generate", ["index.html"])
-        ui_files = [f for f in files_to_gen if any(e in f.lower() for e in [".html", ".css", ".jsx", ".tsx", ".js"] and "server" not in f.lower() and "main.py" not in f.lower())]
+        ui_files = [
+            f for f in files_to_gen
+            if any(e in f.lower() for e in [".html", ".css", ".jsx", ".tsx", ".js"])
+            and "server" not in f.lower()
+            and "main.py" not in f.lower()
+        ]
         
         generated = {}
         for i, fname in enumerate(ui_files):

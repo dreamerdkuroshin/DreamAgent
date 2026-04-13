@@ -20,6 +20,7 @@ if %errorlevel% neq 0 (
 )
 
 REM Check/install pnpm
+
 pnpm --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Installing pnpm...

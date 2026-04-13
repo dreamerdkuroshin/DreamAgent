@@ -191,6 +191,7 @@ async def background_agent_loop(
     user_id: str = "local_user",
     bot_id: str = "local_bot",
     file_ids: str = "",
+    trust_mode: str = "fast",
 ):
     """
     This function runs inside the RQ worker (or synchronously on Windows).
@@ -398,7 +399,7 @@ async def background_agent_loop(
 
     # 2. Dispatch via Central Task Controller (The Brain)
     from backend.orchestrator.task_controller import TaskController
-    controller = TaskController(provider=provider, model=model)
+    controller = TaskController(provider=provider, model=model, trust_mode=trust_mode)
     
     all_results = []
     
@@ -451,7 +452,8 @@ async def background_agent_loop(
                     publish=_save_step,
                     bot_id=bot_id,
                     user_id=user_id,
-                    file_ids=file_ids
+                    file_ids=file_ids,
+                    trust_mode=trust_mode
                 )
             
             all_results.append(result)

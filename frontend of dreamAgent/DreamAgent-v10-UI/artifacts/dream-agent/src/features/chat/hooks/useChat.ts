@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useStreaming } from "./useStreaming";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAppStore } from "@/store/app.store";
 
 export type MessageStatus = "thinking" | "running" | "completed" | "error" | "idle" | "cancelled";
 
@@ -36,6 +37,7 @@ function mapEventToStatus(type: string): MessageStatus {
 export function useChat(activeConvoId: number | null, setMsgInput: (v: string) => void) {
   const queryClient = useQueryClient();
   const { isStreaming, errorMsg, setErrorMsg, startStream, cancelStream: cancelStreamHook } = useStreaming();
+  const { mode } = useAppStore();
 
   const [liveMessage, setLiveMessage] = useState<LiveMessage | null>(null);
   const taskIdRef = useRef<string | null>(null);
@@ -107,7 +109,7 @@ export function useChat(activeConvoId: number | null, setMsgInput: (v: string) =
 
       setLiveMessage(prev => prev ? { ...prev, content: "" } : null);
 
-      const url = `/api/v1/chat/stream?query=${encodeURIComponent(finalPrompt)}&taskId=${newTaskId}&convoId=${activeConvoId}&provider=${provider}&model=${model}&file_ids=${uploadedDocIds.join(",")}`;
+      const url = `/api/v1/chat/stream?query=${encodeURIComponent(finalPrompt)}&taskId=${newTaskId}&convoId=${activeConvoId}&provider=${provider}&model=${model}&trust_mode=${mode.toLowerCase()}&file_ids=${uploadedDocIds.join(",")}`;
 
       startStream(
         url,

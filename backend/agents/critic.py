@@ -19,14 +19,23 @@ Your job is to review the result of an executed task step for:
 - Completeness (all parts of the step addressed)
 - Clarity and quality
 
+CRITICAL CONSTRAINT ON CONTRADICTIONS:
+If you detect conflicting logic or data (e.g., source A says X, source B says Y), you MUST NOT produce a blended middle.
+You must force the result to:
+1. Select the more valid claim (with logical rationale).
+2. Define a context split (e.g., "A is true for segment 1, B is true for segment 2").
+3. Declare insufficient data and flag as UNRESOLVED_CONTRADICTION.
+
+CRITICAL CONSTRAINT ON CODE REVIEW:
+If you are reviewing code, you cannot execute it. You MUST NOT claim "all tests passed" or simulate a terminal output. 
+You must perform static analysis only, and end your review with exactly: "Static Analysis Complete - Manual Execution Required."
+
 If the result is satisfactory, respond with exactly: VALID
 
 If the result has issues, respond with:
-NEEDS_IMPROVEMENT: <brief reason>
+NEEDS_IMPROVEMENT: <reason, e.g., Unresolved Contradiction Detected>
 CORRECTED:
-<your improved/corrected version of the result>
-
-Be strict but fair. Focus on substance, not style.
+<your improved/decisive version of the result>
 """
 
 

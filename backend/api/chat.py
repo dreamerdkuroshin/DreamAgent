@@ -155,7 +155,8 @@ async def event_generator(
     model: str = "",
     last_event_id: Optional[str] = None,
     background_tasks: BackgroundTasks = None,
-    file_ids: Optional[str] = None
+    file_ids: Optional[str] = None,
+    trust_mode: str = "fast"
 ):
     """
     V11 High-Speed Event Generator.
@@ -425,51 +426,31 @@ async def event_generator(
     # ══════════════════════════════════════════════════════════════════════════
     from backend.core.task_router import dispatch_task
     
-    # 1. Decompose
-    sub_tasks = split_tasks(query)
+    # Always dispatch as a single task — chat_worker.background_agent_loop handles
+    # multi-part queries internally with proper SSE streaming.
+    # The previous executor.submit split path fired tasks with no streaming return.
+    task_payload = {
+        "task_id": task_id,
+        "query": query,
+        "file_ids": file_ids or "",
+        "convo_id": str(convo_id) if convo_id else None,
+        "provider": provider,
+        "model": model,
+        "trust_mode": trust_mode
+    }
     
-    returned_hash = task_id
+    # Initialize Task State
+    from backend.core.task_queue import init_task_state, update_task_state
+    init_task_state(task_id, query)
     
-    if len(sub_tasks) > 1:
-        logger.info(f"Decomposed into {len(sub_tasks)} tasks. Dispatching in parallel.")
-        yield f"id: 0\ndata: {json.dumps({'type': 'token', 'content': f'Decomposed into {len(sub_tasks)} tasks... Executing in parallel.'})}\n\n"
-        
-        for i, sub_text in enumerate(sub_tasks):
-            sub_payload = {
-                "task_id": f"{task_id}_{i}",
-                "query": sub_text,
-                "file_ids": file_ids or "",
-                "convo_id": str(convo_id) if convo_id else None,
-                "provider": provider,
-                "model": model
-            }
-            executor.submit(run_task_sync, sub_payload)
-            
-        # Optional: We could poll for all of them, or just let the user know they are queued.
-        # For simplicity, we just poll the first one or yield success.
-        yield f"id: 1\ndata: {json.dumps({'type': 'final', 'content': 'Tasks are running in the background.'})}\n\n"
-        return
-    else:
-        task_payload = {
-            "task_id": task_id,
-            "query": query,
-            "file_ids": file_ids or "",
-            "convo_id": str(convo_id) if convo_id else None,
-            "provider": provider,
-            "model": model
-        }
-        
-        # FIX 3: Initialize Task State
-        from backend.core.task_queue import init_task_state, update_task_state
-        init_task_state(task_id, query)
-        
-        if bool(redis_conn):
-            try: redis_conn.delete(f"task:{task_id}:events")
-            except: pass
-        
-        returned_hash = await dispatch_task(task_payload)
-        if returned_hash != "duplicate":
-            task_id = returned_hash
+    if bool(redis_conn):
+        try: redis_conn.delete(f"task:{task_id}:events")
+        except: pass
+    
+    returned_hash = await dispatch_task(task_payload)
+    if returned_hash != "duplicate":
+        task_id = returned_hash
+
 
     # Monitor events
     idx: int = 0
@@ -584,8 +565,8 @@ async def stream(request: Request, query: str, background_tasks: BackgroundTasks
     if not task_id:
         task_id = str(uuid.uuid4())
         
-    last_event_id = request.headers.get("Last-Event-ID") or request.query_params.get("lastEventId")
-    
+    trust_mode = request.query_params.get("trust_mode", "fast")
+    last_event_id = request.headers.get("Last-Event-ID") or request.query_params.get("last_event_id")
     return StreamingResponse(
         event_generator(
             query=query, 
@@ -595,7 +576,8 @@ async def stream(request: Request, query: str, background_tasks: BackgroundTasks
             model=model, 
             last_event_id=last_event_id, 
             background_tasks=background_tasks,
-            file_ids=file_ids
+            file_ids=file_ids,
+            trust_mode=trust_mode
         ),
         media_type="text/event-stream"
     )
