@@ -11,7 +11,7 @@
 
 **A self-healing, DAG-aware autonomous AI agent platform with production-grade task continuation, OAuth-resilient tool execution, and real-time streaming.**
 
-[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Contributing](#contributing)
+[Features](#features) • [Use Cases](#-what-can-you-build-with-dreamagent) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Contributing](#contributing)
 
 </div>
 
@@ -73,7 +73,153 @@ DreamAgent is a **production-grade autonomous AI agent platform** that goes far 
 
 ---
 
-## Architecture
+## 🚀 What Can You Build With DreamAgent?
+
+DreamAgent is a **general-purpose autonomous AI backend**. Think of it as your personal AI workforce — give it a task in plain English and it plans, executes, handles failures, and comes back with results.
+
+---
+
+### 👨‍💼 Personal Productivity & Life OS
+
+> *"Plan my week: pull tasks from Notion, check my calendar for conflicts, prioritize by deadline, and send me a Slack summary."*
+
+- Pulls Notion database pages
+- Reads Microsoft/Google Calendar
+- Runs priority scoring logic
+- Posts summary to your Slack DM
+- **Resumes automatically** if your Notion OAuth expires mid-task
+
+---
+
+### 📚 AI-Powered Learning Assistant
+
+> *"Teach me async Python, create a Notion study page with exercises, and track my progress."*
+
+- Generates structured concept explanations via LLM
+- Creates a full Notion learning tracker (concept + exercises + progress checklist)
+- Idempotent — won't duplicate the Notion page if the task retries
+- Stores session memory for follow-up questions
+
+---
+
+### 🔍 Research & Deep Intelligence Reports
+
+> *"Research the current state of AI agents, find the top 5 frameworks, and write a structured comparison report."*
+
+- Runs Tavily web searches in parallel across multiple angles
+- Synthesizes findings with Truth Confidence Scoring
+- Streams the full report token-by-token in real time
+- `research` trust mode triggers deeper multi-pass synthesis
+
+---
+
+### 💻 App & Code Generation
+
+> *"Build me a REST API for a todo app with auth, PostgreSQL, and Docker support."*
+
+- Multi-agent builder pipeline: Planner → Researcher → Coder → Validator
+- Generates complete file trees with working code
+- Streams file-by-file output
+- Validates the generated code structure before returning
+
+---
+
+### 🤖 Telegram / Discord / Slack / WhatsApp Bots
+
+> *"Start a Telegram bot with token XXX that answers questions about my business."*
+
+- Launches a live bot process from a single chat message
+- Bot runs persistently in the background
+- Integrates your custom LLM personality and memory
+- Multiple bots can run in parallel
+
+---
+
+### 🗂️ Automated Notion Workflows
+
+> *"Every Monday, create a weekly review page in Notion with my top 3 goals and a habit tracker."*
+
+- Scheduled execution via the retry ZSET scheduler
+- OAuth-resilient — pauses and resumes if token expires
+- Full idempotency — never creates duplicate pages
+- Supports workspace-level and page-level Notion operations
+
+---
+
+### 📊 Financial & Market Research
+
+> *"Get the latest stock data for NVDA and MSFT, compare their P/E ratios, and summarize analyst sentiment."*
+
+- Parallel tool calls for financial data
+- Real-time streaming of results
+- Can be chained: `get data → analyze → write report → post to Slack`
+
+---
+
+### 🧪 Multi-Step Chained Tasks
+
+> *"Search for the top 3 Python async frameworks, write a blog post comparing them, then save it to Notion and post the link to #engineering on Slack."*
+
+DreamAgent handles this as a **chain of dependent tasks**:
+
+```
+1. Web Search (Tavily)          ← parallel: 3 queries
+        ↓
+2. Synthesize Comparison        ← LLM synthesis
+        ↓
+3. Create Notion Page           ← tool call (idempotent)
+        ↓
+4. Post Slack Message           ← tool call (with page URL)
+```
+
+If Notion OAuth expires at step 3 → task **pauses**, prompts you to reconnect, then **resumes at step 3** — steps 1 and 2 are not re-run.
+
+---
+
+### 🏢 Enterprise Automation Patterns
+
+| Pattern | Description |
+|---------|-------------|
+| **Daily Standup** | Pull Jira/Notion tickets → summarize blockers → post to Slack |
+| **Onboarding** | Create Notion workspace, send welcome Slack, set calendar reminders |
+| **Incident Response** | Detect anomaly → search logs → draft report → notify team |
+| **Content Pipeline** | Research → draft → review → publish → promote |
+| **CRM Updates** | Parse emails → extract contacts → update Notion CRM |
+
+---
+
+### 🛠️ Developer & DevOps Use Cases
+
+| Use Case | How |
+|----------|-----|
+| Auto-generate REST APIs | "Build me a FastAPI endpoint for X" |
+| Write and run test suites | "Write pytest tests for this function, then run them" |
+| Docker setup | "Create a Dockerfile + compose for my Python app" |
+| Database migrations | "Write an Alembic migration to add column X to table Y" |
+| Code explanation | "Explain how this codebase handles authentication" |
+| Dependency audits | "Check requirements.txt for outdated or vulnerable packages" |
+
+---
+
+### ❓ Anything You Can Describe in Plain English
+
+DreamAgent routes your query through:
+
+```
+plain_english → intent_detection → right_agent → right_tools → result
+```
+
+Supported intents out of the box:
+- `chat` — conversational AI
+- `research` — deep web search + synthesis
+- `code` — coding assistant
+- `finance` — market data + analysis
+- `news` — real-time news aggregation
+- `builder` — full app generation
+- `notion_learn` — structured learning with Notion
+- `autonomous` — multi-step agent chain
+
+---
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
