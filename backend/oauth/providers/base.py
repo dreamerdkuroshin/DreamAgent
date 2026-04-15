@@ -9,6 +9,18 @@ from fastapi import Request
 from typing import Dict, Any
 
 
+class OAuthException(Exception):
+    """
+    Structured OAuth error that carries provider context.
+    Allows the router to return clean, actionable error responses
+    instead of generic 500s.
+    """
+    def __init__(self, provider: str, message: str):
+        self.provider = provider
+        self.message = message
+        super().__init__(f"[{provider}] {message}")
+
+
 class BaseOAuthProvider(ABC):
     """Universal interface for all OAuth providers."""
 
@@ -27,6 +39,7 @@ class BaseOAuthProvider(ABC):
         Exchange the authorization code for tokens.
         Must return a dict with keys:
             access_token, refresh_token (if available), expires_at, raw (full response)
+        Raises OAuthException on any failure.
         """
 
     @abstractmethod

@@ -21,10 +21,8 @@ SIMPLE_FACT_PREFIXES = ["what is", "what are", "what was", "what were", "what do
 
 # ⚡ INSTANT: single-word / pure casual — templates only, zero LLM
 INSTANT_EXACT = {"wtf", "lol", "lmao", "lmfao", "yo", "sup", "hey", "hi", "hello",
-                 "haha", "hahaha", "ok", "okay", "k", "kk", "cool", "nice", "bruh",
-                 "bro", "ngl", "fr", "gg", "smh", "thx", "ty", "thanks", "bye",
-                 "byeee", "wyd", "wdym", "wbu", "hbu", "ikr", "ik", "nah",
-                 "yep", "yup", "nope", "aight", "bet"}
+                 "haha", "hahaha", "bruh", "bro", "ngl", "fr", "gg", "smh", "thx", 
+                 "ty", "thanks", "bye", "byeee", "wyd", "wdym", "wbu", "hbu", "ikr", "ik"}
 
 INSTANT_PREFIXES = ["what u ", "what r u ", "what are u ", "what you ", "wyd", "u there",
                     "you there", "r u ", "are u ", "u up", "you up", "what's good",

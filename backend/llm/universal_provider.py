@@ -37,15 +37,18 @@ _PLACEHOLDER_VALUES = {
 # All providers that speak the OpenAI-compatible /chat/completions format.
 # Each entry: (display_name, base_url, env_key, default_model)
 _ALL_PROVIDERS = [
-    # ── Tier 1: Fast & Free / Cheap ────────────────────────────────────────────
+    # -- Tier 1: Fast & Free / Cheap --
     ("gemini",      "https://generativelanguage.googleapis.com/v1beta/openai",
                      "GEMINI_API_KEY",      "gemini-2.0-flash"),
     ("groq",        "https://api.groq.com/openai/v1",
                      "GROQ_API_KEY",        "llama-3.1-8b-instant"),
-    # ── Tier 2: Premium cloud LLMs ─────────────────────────────────────────────
+    # -- Tier 2: Available cloud providers (working keys) --
+    ("nvidia",      "https://integrate.api.nvidia.com/v1",
+                     "NVIDIA_API_KEY",      "meta/llama-3.1-405b-instruct"),
+    # -- Tier 3: Premium cloud LLMs --
     ("openai",      "https://api.openai.com/v1",
                      "OPENAI_API_KEY",      "gpt-4o-mini"),
-    # NOTE: Anthropic uses a native Messages API — handled by _call_anthropic(), NOT /chat/completions
+    # NOTE: Anthropic uses a native Messages API -- handled by _call_anthropic(), NOT /chat/completions
     ("anthropic",   "https://api.anthropic.com/v1",
                      "ANTHROPIC_API_KEY",   "claude-3-haiku-20240307"),
     ("anthropic",   "https://api.anthropic.com/v1",
@@ -54,22 +57,18 @@ _ALL_PROVIDERS = [
                      "DEEPSEEK_API_KEY",    "deepseek-chat"),
     ("mistral",     "https://api.mistral.ai/v1",
                      "MISTRAL_API_KEY",     "mistral-small-latest"),
-    # ── Tier 3: Nvidia / xAI / Perplexity ──────────────────────────────────────
-    ("nvidia",      "https://integrate.api.nvidia.com/v1",
-                     "NVIDIA_API_KEY",      "meta/llama-3.1-405b-instruct"),
+    # -- Tier 4: Nvidia / xAI / Perplexity --
     ("xai",         "https://api.x.ai/v1",
                      "XAI_API_KEY",         "grok-beta"),
     ("perplexity",  "https://api.perplexity.ai",
                      "PERPLEXITY_API_KEY",  "llama-3.1-sonar-small-128k-online"),
-    # ── Tier 4: Router / Aggregator ────────────────────────────────────────────
-    # ── Tier 4: HuggingFace (native OpenAI-compat Inference API v1) ────────────
-    # Supports Mistral, Llama, Phi, Falcon, Zephyr, and 100k+ HF models directly
+    # -- Tier 5: HuggingFace (native OpenAI-compat Inference API v1) --
     ("huggingface", "https://api-inference.huggingface.co/v1",
                      "HUGGINGFACE_API_KEY", "mistralai/Mistral-7B-Instruct-v0.3"),
-    # ── Tier 5: Router / Aggregator (proxies ALL providers) ────────────────────
+    # -- Tier 5: Router / Aggregator (proxies ALL providers) --
         ("openrouter",  "https://openrouter.ai/api/v1",
                      "OPENROUTER_API_KEY",  "openai/gpt-4o-mini"),
-    # ── Tier 5: Asian / Regional providers ─────────────────────────────────────
+    # -- Tier 5: Asian / Regional providers --
     ("qwen",        "https://dashscope.aliyuncs.com/compatible-mode/v1",
                      "QWEN_API_KEY",        "qwen-plus"),
     ("zhipuai",     "https://open.bigmodel.cn/api/paas/v4",
@@ -208,6 +207,10 @@ def _build_provider_chain(
                 logger.info(f"[Chain] Bootstrapping '{name}' from environment variable.")
                 chain.append((name, base_url, env_val, default_model))
             
+    # 3. Handle Ollama natively before Mode Enforcement
+    if preferred_provider == "ollama":
+        chain.append(("ollama", "http://localhost:11434/v1", "ollama", target_model or "gemma3:4b"))
+        
     # 3. Mode Enforcement
     # STRICT -> Only allow the preferred provider
     if mode == "STRICT" and preferred_provider != "auto":
@@ -238,8 +241,8 @@ def _build_provider_chain(
         # SMART MODE -> If we have a preferred one, we keep the rest of the chain as fallback
         # AUTO MODE -> Same as SMART but usually preferred is auto anyway
 
-    # Ollama is always last resort ONLY if preferred is auto or ollama OR mode != STRICT
-    if mode != "STRICT" and (preferred_provider == "auto" or preferred_provider == "ollama"):
+    # Ollama is always last resort ONLY if preferred is auto OR mode != STRICT
+    if mode != "STRICT" and preferred_provider != "ollama":
         chain.append(("ollama", "http://localhost:11434/v1", "ollama", "gemma3:4b"))
         
     return chain
@@ -290,8 +293,7 @@ class UniversalProvider(LLMProvider):
 
         errors = []
         for name, base_url, api_key, default_model in chain:
-            # If the specific model was rejected, we retry instantly with default model (allow up to 2 passes: user_model -> default_model)
-            model_to_try = self.model or default_model
+            model_to_try = self._resolve_model(name, default_model)
             last_error = ""
             
             for _pass in range(2):
@@ -337,7 +339,7 @@ class UniversalProvider(LLMProvider):
         errors = []
         chain = _build_provider_chain(self.provider_name, self.user_id)
         for name, base_url, api_key, default_model in chain:
-            model_to_try = self.model or default_model
+            model_to_try = self._resolve_model(name, default_model)
             last_error = ""
             
             for _pass in range(2):
@@ -379,7 +381,7 @@ class UniversalProvider(LLMProvider):
             return
 
         for name, base_url, api_key, default_model in chain:
-            model = self.model or default_model
+            model = self._resolve_model(name, default_model)
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {"model": model, "messages": clean, "stream": True}
 
@@ -453,7 +455,7 @@ class UniversalProvider(LLMProvider):
             return
 
         for name, base_url, api_key, default_model in chain:
-            model = self.model or default_model
+            model = self._resolve_model(name, default_model)
             
             if name == "anthropic":
                 success = False
@@ -565,15 +567,19 @@ class UniversalProvider(LLMProvider):
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": model, "messages": messages}
+        # Nvidia needs longer timeout - model is large & slow
+        req_timeout = 90 if _provider_name == "nvidia" else 60
         try:
-            resp = requests.post(base_url + "/chat/completions", headers=headers, json=payload, timeout=30)
+            resp = requests.post(base_url + "/chat/completions", headers=headers, json=payload, timeout=req_timeout)
             # Support 404/400 fallback logic
             if resp.status_code in [404, 400]:
                 return f"Error: {resp.status_code} - {resp.text}"
             if resp.status_code == 429:
                 if _provider_name:
                     _record_provider_failure(_provider_name)
-                return f"Error: Rate limited (429)"
+                return f"Error: Rate limited (429) - skipping to next provider"
+            if resp.status_code == 401:
+                return f"Error: Unauthorized (401) - API key invalid for {_provider_name}"
             resp.raise_for_status()
             if _provider_name:
                 _record_provider_success(_provider_name)
@@ -581,13 +587,31 @@ class UniversalProvider(LLMProvider):
         except requests.exceptions.Timeout:
             if _provider_name:
                 _record_provider_failure(_provider_name)
-            return f"Error: Request timed out after 30s"
+            return f"Error: Request timed out after {req_timeout}s"
         except Exception as e:
             if _provider_name:
                 _record_provider_failure(_provider_name)
             return f"Error: {str(e)}"
 
-    def _normalize_messages(self, messages: list) -> list:
+    def _resolve_model(self, name: str, default_model: str) -> str:
+        """Determines if we should use the user's specific target model or the provider's default."""
+        if not self.model:
+            return default_model
+            
+        if name == self.provider_name:
+            return self.model
+            
+        if name in ("openrouter", "huggingface"):
+            return self.model
+            
+        # Check DB ownership cache
+        prov_data = _get_user_session_cached(self.user_id).get(name)
+        if prov_data and self.model in prov_data.get("models", set()):
+            return self.model
+            
+        return default_model
+
+    def _normalize_messages(self, messages: List[dict]) -> List[dict]:
         fixed = []
         for m in messages:
             role = m.get("role")

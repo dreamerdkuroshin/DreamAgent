@@ -18,11 +18,18 @@ class ToolAgent:
     async def execute_tool(self, tool_name: str, user_id: str = None, bot_id: str = None, **kwargs) -> str:
         """Executes a defined tool securely via dynamic routing to MCP, OAuth, or Local logic."""
         
+        # 🧪 Mock Tools for Testing to prevent sequential dependency hell & timeouts
+        if tool_name == "mock_search":
+            return '["Idea 1", "Idea 2"]'
+            
         # 🧠 Smart Tool Routing Layer
         tool_registry = {
             "google_drive": {"source": "oauth", "provider": "google"},
             "gmail_send": {"source": "oauth", "provider": "google"},
             "slack_message": {"source": "oauth", "provider": "slack"},
+            "send_slack_message": {"source": "oauth", "provider": "slack"},
+            "slack_list_channels": {"source": "oauth", "provider": "slack"},
+            "slack_list_users": {"source": "oauth", "provider": "slack"},
             "notion_query": {"source": "mcp"},
             "sqlite_query": {"source": "mcp"},
         }
@@ -36,7 +43,32 @@ class ToolAgent:
                 from backend.oauth.oauth_manager import get_active_token
                 token = await get_active_token(user_id, bot_id, route["provider"])
                 if not token:
-                    return f"Error: No active OAuth token for {route['provider']}. Please connect account first."
+                    import json
+                    return json.dumps({
+                        "action": "reauth_required",
+                        "provider": route["provider"]
+                    })
+                
+                if route["provider"] == "slack":
+                    from connectors.oauth.slack import SlackConnector
+                    # In get_active_token, token is returned as a string (access_token)
+                    connector = SlackConnector(token=token)
+                    
+                    if tool_name in ("slack_message", "send_slack_message"):
+                        channel = kwargs.get("channel") or kwargs.get("channel_name")
+                        text = kwargs.get("text") or kwargs.get("message")
+                        if not channel or not text:
+                            return "Error: channel and text are required for slack_message"
+                        res = connector.send_message(channel, text)
+                        return f"Result: {res}"
+                        
+                    elif tool_name in ("slack_list_channels", "list_slack_channels"):
+                        res = connector.list_channels()
+                        return f"Result: {res}"
+                        
+                    elif tool_name in ("slack_list_users", "list_slack_users"):
+                        res = connector.list_users()
+                        return f"Result: {res}"
                 
                 # Proxy to actual module runner with fresh token...
                 return f"✅ OAuth tool '{tool_name}' executed securely with {route['provider']} token."

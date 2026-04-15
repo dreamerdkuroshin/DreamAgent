@@ -1,321 +1,469 @@
-# 🌌 DreamAgent v10
+# DreamAgent
 
-> **Autonomous Multi-Model AI Agent Platform** — 9 specialized agent types, universal webhook routing, multi-tier task queues, real-time SSE streaming, and complete local privacy.
+<div align="center">
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/Vite_React-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org/)
-[![Python](https://img.shields.io/badge/Python_3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+![DreamAgent Banner](https://img.shields.io/badge/DreamAgent-Autonomous%20AI%20Platform-6C63FF?style=for-the-badge&logo=robot&logoColor=white)
 
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com)
+[![Redis](https://img.shields.io/badge/Redis-7+-red.svg)](https://redis.io)
 
-## 🎬 Live Demo
+**A self-healing, DAG-aware autonomous AI agent platform with production-grade task continuation, OAuth-resilient tool execution, and real-time streaming.**
 
-![DreamAgent UI Tour](docs/screenshots/demo.gif)
+[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Contributing](#contributing)
 
----
-
-## 📸 Screenshots
-
-| Dashboard | AI Agents |
-|:---:|:---:|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Agents](docs/screenshots/agents.png) |
-
-| Create Agent (9 Types) | Real-Time Chat |
-|:---:|:---:|
-| ![Create Agent](docs/screenshots/create_agent_modal.png) | ![Chat](docs/screenshots/chat.png) |
-
-| Monitoring | Settings |
-|:---:|:---:|
-| ![Monitoring](docs/screenshots/monitoring.png) | ![Settings](docs/screenshots/settings.png) |
-
-| App Builder |
-|:---:|
-| ![Builder](docs/screenshots/builder.png) |
+</div>
 
 ---
 
-## 🤖 9 Specialized Agent Types
+## What is DreamAgent?
 
-| Type | Icon | Description |
-|------|------|-------------|
-| **Orchestrator** | 🕸️ Network | Coordinates planners + workers across complex multi-step tasks |
-| **Planner** | 🧠 Brain | Decomposes goals into ordered, executable steps |
-| **Worker** | ⚡ Zap | Executes steps via AutoGPT + ReAct loop |
-| **Validator** | 🛡️ ShieldCheck | Reviews and validates agent outputs for quality |
-| **Debate** | 🔀 GitBranch | Ensemble reasoning via multi-perspective debate |
-| **Research** | 📖 BookOpen | Gathers data via search, YouTube, and web browsing |
-| **Writer** | ✏️ PenLine | Content generation, synthesis, and tone shaping |
-| **Coder** | 💻 Code2 | Autonomous dev — reads/writes code, runs tests, git |
-| **Critic** | 🔬 FlaskConical | Self-reflection and quality control evaluator |
+DreamAgent is a **production-grade autonomous AI agent platform** that goes far beyond a simple chat interface. It is a self-healing execution engine capable of:
 
-Each agent runs on your choice of model — GPT-4o, Claude, Gemini, Groq, DeepSeek, Mistral, Ollama, and more.
+- **Orchestrating complex multi-step tasks** using a DAG (Directed Acyclic Graph) execution model
+- **Seamlessly resuming paused tasks** after OAuth re-authentication — exactly from where it left off
+- **Preventing duplicate side-effects** with two-level idempotency (orchestrator-level + tool-level)
+- **Protecting against split-brain execution** with distributed locking and lease validation per wave
+- **Self-healing rate limits** via a non-blocking ZSET retry scheduler with jitter
+- **Observability-first design** with immutable event logs for every state transition
 
 ---
 
-## ⚡ Quick Start
+## Features
 
-### Step 1: Clone & Install Dependencies
+### 🧠 Autonomous Execution Engine
+- **DAG-based task planning** — tasks are broken into dependency-aware execution waves
+- **Parallel wave execution** — independent steps run concurrently within each wave
+- **Dynamic replanning** — failed steps trigger replan up to `MAX_REPLANS` times
+- **Trust Mode** — `fast`, `truth`, and `research` execution depths
+
+### 🔐 Production-Grade OAuth & Security
+- **Fernet-encrypted CSRF state** with embedded nonces and 15-minute TTLs
+- **Bound resume tokens** — cryptographically tied to `task_id + user_id`
+- **Truth-based token expiry** — 10-minute safety buffer against mid-task expiry
+- **Checkpoint version validation** — prevents resume drift after code deployments
+
+### 🛡️ Fault Tolerance & Resilience
+- **Distributed locking** — `SET NX PX` with UUID-based ownership and background heartbeats
+- **Split-brain abort** — lease ownership validated before each execution wave
+- **ZSET retry scheduler** — 429 rate limits become non-blocking deferred tasks with jitter
+- **Dynamic zombie cleanup** — inactive tasks purged after `3600 + (completed_steps × 600)` seconds
+
+### 📊 Observability
+- **State transition log** — immutable event trail at `tasks:{id}:state_log` with auto-compaction
+- **Task timeline events** — every transition logged with timestamp and message
+- **System Intelligence Scorecard** — Truth Confidence Score, execution rate, adaptive replans
+
+### 🔧 Tool Integrations
+- **Notion** — create learning trackers, search pages, append notes (with full idempotency)
+- **Slack** — send messages to channels via OAuth
+- **Microsoft** — calendar and email via Graph API
+- **Google** — Drive and Calendar integration
+- **Telegram / Discord / Slack / WhatsApp** — bot platform integrations
+
+### 🤖 Multi-Provider LLM
+- OpenAI, Anthropic (Claude), Google (Gemini), NVIDIA, Groq, HuggingFace, OpenRouter, Ollama
+- Automatic provider fallback chain
+- Semantic caching for repeated queries
+
+### 🏗️ Multi-Agent Builder
+- Generates full applications from natural language descriptions
+- Planner → Researcher → Tool-Agent → Synthesizer → Validator pipeline
+
+---
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                         Frontend (SSE)                              │
+│          Chat UI → Real-time streaming via Server-Sent Events        │
+└──────────────────────────┬─────────────────────────────────────────┘
+                           │ HTTP / SSE
+┌──────────────────────────▼─────────────────────────────────────────┐
+│                     FastAPI Backend                                  │
+│  /chat/stream  /chat/resume  /oauth/{provider}/connect              │
+└──┬──────────────────────┬─────────────────────┬────────────────────┘
+   │                      │                     │
+   ▼                      ▼                     ▼
+┌──────────┐     ┌────────────────┐    ┌────────────────────┐
+│ HybridRouter │ │  TaskController │    │   OAuth Manager    │
+│ Intent +  │     │  DAG Executor   │    │  Fernet + Tokens   │
+│ Priority  │     │  Wave Scheduler │    │  Resume Contracts  │
+└──────────┘     └───────┬────────┘    └────────────────────┘
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+              ▼                     ▼
+   ┌──────────────────┐   ┌──────────────────┐
+   │  Parallel Agents  │   │  Retry Handler   │
+   │  Planner/Executor │   │  ZSET Scheduler  │
+   │  Research/Coder   │   │  Jitter + 429    │
+   └──────────────────┘   └──────────────────┘
+              │
+              ▼
+   ┌──────────────────────────────┐
+   │         Tool Layer           │
+   │  Notion / Slack / MS / Google│
+   │  Idempotency (execution_id)  │
+   └──────────────────────────────┘
+              │
+              ▼
+   ┌──────────────────────────────┐
+   │    Persistence Layer         │
+   │  Redis/Dragonfly  SQLite/PG  │
+   │  State Logs  Checkpoints     │
+   └──────────────────────────────┘
+```
+
+### Key Design Decisions
+
+| Component | Design | Why |
+|-----------|--------|-----|
+| **Lock** | `SET NX PX` + UUID + heartbeat | Prevents deadlocks and split-brain on worker crash |
+| **Idempotency** | 2-level: DAG node skip + tool-level Redis cache | Prevents duplicate Slack/Notion side effects |  
+| **Retry** | ZSET scheduled, non-blocking, with jitter | Prevents thundering herd on shared APIs |
+| **Checkpoint** | Dict keyed by `node_id` with version field | Deterministic resume, drift-safe across deploys |
+| **Token Expiry** | Truth-based DB timestamp, 10-min buffer | Prevents mid-task OAuth failures |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- Redis or Dragonfly (for distributed features)
+- At least one LLM API key
+
+### 1. Clone & Install
+
 ```bash
-git clone https://github.com/dreamerdkuroshin/DreamAgent.git
+git clone https://github.com/YOUR_USERNAME/DreamAgent.git
 cd DreamAgent
-```
-
-> 💡 **No Git Installed?** If you get the error `'git' is not recognized as an internal or external command`, you can download the project without Git:
-> 1. Go to the [DreamAgent GitHub page](https://github.com/dreamerdkuroshin/DreamAgent)
-> 2. Click the green **Code** button and select **Download ZIP**.
-> 3. Extract the ZIP file, open the extracted `DreamAgent-main` folder in your terminal, and continue to the next steps.
-
-```bash
-
-# Install Python dependencies
 pip install -r requirements.txt
-
-# Install Frontend dependencies  
-cd "frontend of dreamAgent/DreamAgent-v10-UI"
-npm install
-cd ../..
 ```
 
-### Step 2: Configure Environment
+### 2. Configure Environment
+
 ```bash
 cp .env.example .env
-# Edit .env with your API keys (Gemini, Groq, OpenAI, etc.)
+# Edit .env with your API keys
 ```
 
-> **💡 Bootstrap Fallback:** If your primary key hits a rate limit, DreamAgent gracefully cycles through your other `.env` providers to guarantee uptime.
-(**if u don't do this step then ok u do step 3**) *
-### Step 3: Launch
+**Minimum required for basic chat:**
+```env
+GEMINI_API_KEY=your_key_here
+# OR
+OPENAI_API_KEY=your_key_here
+```
+
+**For full autonomous features:**
+```env
+REDIS_URL=redis://localhost:6379/0
+BACKEND_URL=http://localhost:8001
+ENCRYPTION_KEY=  # auto-generated on first run
+
+# OAuth (for tool integrations)
+NOTION_CLIENT_ID=...
+NOTION_CLIENT_SECRET=...
+SLACK_CLIENT_ID=...
+SLACK_CLIENT_SECRET=...
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+```
+
+### 3. Initialize Database
+
+```bash
+python init_db.py
+```
+
+### 4. Start the Server
+
+**Windows:**
 ```cmd
 start.bat
 ```
-This starts:
-- 🚀 **DreamAgent Backend** on `http://localhost:8001`
-- 🎨 **DreamAgent Dashboard** on `http://localhost:5000`
-after this steps if not start dragonfly then run this command
+
+**Linux/Mac:**
+```bash
+./install.sh
+uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload
 ```
-podman-compose.yml
-```
 
-### Step 4: Start Chatting with Your Agent
+### 5. Open the Frontend
 
-Once the app is running at `http://localhost:5000`, follow these steps to have your first AI conversation:
-
-#### 4a — Add Your API Keys (Settings)
-1. Open **Settings** → **API Keys** tab
-2. Enter at least one provider key (e.g. OpenAI, Groq, Gemini, Anthropic)
-3. Click **Verify** — the key turns ✅ green when valid
-4. Save
-
-> 💡 **Tip:** You don't need all providers — even a single free [Groq](https://console.groq.com) key is enough to start.
-
-#### 4b — Create an Agent (Agents Page)
-1. Go to **Agents** → click **New Agent**
-2. Choose an **Agent Type** (e.g. Worker, Coder, Research)
-3. Select the **Model** from your verified providers
-4. Give it a name (e.g. `Research-01`) and click **Create Agent**
-
-#### 4c — Chat!
-1. Go to the **Chat** page
-2. Select your newly created agent from the sidebar
-3. Type your message and hit **Send** — responses stream back in real time ⚡
+Navigate to `http://localhost:5000` (or open `frontend/index.html` directly).
 
 ---
 
-## 🏗️ Architecture
+## API Reference
 
-```mermaid
-graph TD
-    A[React Dashboard / Telegram UI] -->|HTTP / SSE| B(FastAPI Gateway)
-    B --> C{Multimodal Router}
-    
-    C -->|Fast Path| D[LLM Universal Provider]
-    C -->|Complex Path| E[Task Priority Queue]
-    
-    E --> F[Local Async Worker]
-    E --> G[Distributed Redis/Dragonfly]
-    
-    F --> H[Tool Execution Engine]
-    G --> H
-    
-    H --> I[(SQLite DB)]
-    D --> I
+### Chat
 
-    subgraph "9 Agent Types"
-        J[Orchestrator] --> K[Planner]
-        K --> L[Worker / Coder / Writer]
-        L --> M[Validator / Critic]
-    end
+#### `GET /api/v1/chat/stream`
+Stream agent responses via Server-Sent Events.
+
+**Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | ✅ | User message |
+| `task_id` | string | ✅ | Unique task identifier |
+| `bot_id` | string | ❌ | Agent personality ID |
+| `provider` | string | ❌ | LLM provider (`auto`, `openai`, `gemini`, etc.) |
+| `model` | string | ❌ | Specific model name |
+| `trust_mode` | string | ❌ | `fast`, `truth`, or `research` |
+
+**SSE Event Types:**
+```
+step        → Progress update
+token       → Streamed response token
+final       → Task completed
+error       → Error occurred
+oauth_reconnect → OAuth re-auth required
+truth_metrics   → Accuracy scorecard
 ```
 
----
+#### `GET /api/v1/chat/resume`
+Resume a paused task after OAuth re-authentication.
 
-## 🔑 Key Features
+**Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `task_id` | string | ✅ | Task to resume |
+| `resume_token` | string | ✅ | Cryptographic bound token |
+| `user_id` | string | ✅ | Must match original user |
 
-### 🤖 Agent Workforce
-- **9 Specialized Types**: Orchestrator, Planner, Worker, Validator, Debate, Research, Writer, Coder, Critic
-- **Any Model**: Switch per-agent between GPT-4o, Claude, Gemini, Groq, DeepSeek, Ollama
-- **Persistent Memory**: Agents retain context across runs via FAISS + SQLite memory engine
-
-### 🏭 Task Pipeline
-- **Multi-Tier Queues**: Simple/Medium/Complex task routing with priority scheduling
-- **Hybrid Workers**: Local `asyncio` queues upgrading automatically to Dragonfly/Redis at scale
-- **Watchdog Recovery**: Stuck tasks auto-recovered with exponential backoff retries
-
-> 💡 **Where is Dragonfly?** You might notice `start.bat` doesn't run Dragonfly. This is intentional! DreamAgent uses **Self-Healing Fallback** logic. If Dragonfly/Redis isn't detected, it gracefully degrades to using purely local Python `asyncio` memory queues. The platform runs perfectly without Dragonfly for local/personal use. If you want distributed scale, simply spin up the provided `podman-compose.yml`.
-
-### 💬 Real-Time Chat
-- **SSE Streaming**: Token-by-token streaming from any provider
-- **Optimistic UI**: Zero-flicker persistence via DB sync events
-- **Multi-Agent Chat**: Route conversations to specific specialized agents
-
-### 📡 Integrations
-- **Telegram Bot**: Full polling + webhook support with memory isolation
-- **Gmail / Drive / Calendar**: OAuth-gated Google connectors
-- **Tavily Search**: AI-powered web search + news + deep research
-- **Supabase**: Auth + Database + Storage out of the box
-
-### 🏗️ App Builder
-- **AI-Generated Projects**: Say "Build me an e-commerce site" → get complete React + FastAPI app
-- **Live Preview**: View and iterate on generated apps in-browser
-- **Version History**: Roll back to any previous build version
-
-### 📊 Monitoring
-- **Real-Time Dashboard**: Token usage, task queues, worker health, API costs
-- **Agent Health Tracking**: Per-agent task count, conversation count, status
-- **System Health Checks**: All backend services, DB, and integrations
-
----
-
-## 🛠️ Project Toolkit
-
-| Script | Purpose |
-|---|---|
-| `start.bat` | One-click launcher for the entire stack |
-| `clear_db.py` | Sweep and reset local SQLite state |
-| `telegram_bot.py` | Telegram agent integration runner |
-| `test_news_stream.py` | Debug SSE generation and task routing |
-| `test_integrations.py` | Validate all external API connections |
-| `check_db.py` | Inspect database tables and rows |
-| `diagnostics.py` | Full system health diagnostic report |
-
----
-
-## 🔌 Supported LLM Providers
-
-| Provider | Models |
-|---|---|
-| **OpenAI** | GPT-4o, GPT-4o-mini, o1, o3-mini |
-| **Anthropic** | Claude 3.5 Sonnet, Claude 3 Haiku |
-| **Google** | Gemini 2.0 Flash, Gemini 1.5 Pro |
-| **Groq** | LLaMA 3.3, Mixtral, Gemma2 |
-| **DeepSeek** | DeepSeek Chat V3, R1 |
-| **Mistral** | Mistral Large, Pixtral |
-| **Ollama** | Any local model (Llama3, Phi3, etc.) |
-| **OpenRouter** | 100+ models via unified API |
-
----
-
-## 🔐 Security Notice
-
-**Never commit your `.env` or `.db` files!**
-
-This repo has a strict `.gitignore`. Use `git push` via terminal or GitHub Desktop — never the browser's drag-and-drop upload, as that can inadvertently expose secrets.
-
----
-
-## 🔌 Integrations Setup
-
-### Supabase (Auth + Database + Storage)
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_...
-SUPABASE_SERVICE_KEY=sb_secret_...
+**Response on expired token:**
+```json
+{
+  "status": "expired",
+  "action": "restart_required",
+  "message": "The resume window has expired. Please start a new task."
+}
 ```
 
-### Tavily (AI Web Search)
-```env
-TAVILY_API_KEY=tvly-dev-...
+### OAuth
+
+#### `GET /api/v1/oauth/{provider}/connect`
+Initiates the OAuth flow for a provider.
+
+**Supported providers:** `notion`, `slack`, `microsoft`, `google`
+
+#### `GET /api/v1/oauth/{provider}/callback`
+OAuth callback handler (set this as your redirect URI in provider settings).
+
+### Task Status
+
+#### `GET /api/v1/chat/status/{task_id}`
+Get current task status and steps.
+
+---
+
+## OAuth Setup Guide
+
+### Notion
+1. Go to [Notion Developers](https://www.notion.so/my-integrations) → New Integration
+2. Set redirect URI: `http://localhost:8001/api/v1/oauth/notion/callback`
+3. Copy Client ID and Secret to `.env`
+
+### Slack
+1. Go to [Slack API](https://api.slack.com/apps) → Create App
+2. Add OAuth redirect URL: `http://localhost:8001/api/v1/oauth/slack/callback`
+3. Required scopes: `chat:write`, `channels:read`, `users:read`
+
+### Microsoft
+1. Go to [Azure Portal](https://portal.azure.com) → App Registrations
+2. Add redirect URI: `http://localhost:8001/api/v1/oauth/microsoft/callback`
+3. Required scopes: `User.Read`, `Calendars.ReadWrite`, `Mail.Send`
+
+---
+
+## Task Execution Model
+
+### Normal Flow
+```
+User Query
+    ↓
+Intent Detection (HybridRouter)
+    ↓
+DAG Planning (PlannerAgent)
+    ↓
+Wave Execution (parallel within wave)
+    ↓
+Synthesis + Truth Scoring
+    ↓
+Response Streamed
 ```
 
-### Telegram Bot
-```env
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+### Resume Flow (OAuth interruption)
+```
+Tool hits auth error
+    ↓
+Checkpoint saved (completed_steps dict)
+    ↓
+SSE emits: oauth_reconnect { resume_token, expires_in: 900, fallback: "task_cancel" }
+    ↓
+User clicks auth link → OAuth completes
+    ↓
+Frontend calls /resume with token
+    ↓
+Version check: checkpoint_version == CHECKPOINT_VERSION?
+  → YES: Resume from node_id, skip completed steps
+  → NO:  Restart from original_query (safe fallback)
+    ↓
+Execution continues from exactly where it stopped
 ```
 
-### Stripe (Payments)
-```env
-STRIPE_API_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
+### Rate Limit Flow
+```
+Tool returns 429
+    ↓
+Task → RETRYING state
+Checkpoint saved
+    ↓
+ZADD tasks:scheduled_retries  score=(now + delay + jitter)
+    ↓
+retry_scheduler_loop polls every 5s
+    ↓
+Auto-resume when score <= now
 ```
 
 ---
 
-## 🧪 Run Tests
+## Configuration Reference
+
+### Feature Flags (`.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TOOL_PYTHON_ENABLED` | `true` | Allow Python code execution |
+| `TOOL_TERMINAL_ENABLED` | `true` | Allow shell commands |
+| `TOOL_BROWSER_ENABLED` | `false` | Headless browser tool |
+| `TOOL_TAVILY_ENABLED` | `true` | Web search via Tavily |
+| `MAX_STEPS` | `10` | Maximum steps per task |
+
+### Trust Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `fast` | Single-pass execution | Quick answers, chat |
+| `truth` | Multi-pass with verification | Research, facts |
+| `research` | Deep web search + synthesis | Comprehensive reports |
+
+---
+
+## Development
+
+### Running Tests
 
 ```bash
-# Test all external API connections
-python test_integrations.py
+# Unit tests
+pytest backend/tests/ -v
 
-# Test news streaming pipeline
-python test_news_stream.py
+# Integration tests  
+python dreamagent_test_pack.py
+
+# Orchestration tests
+python orchestration_test_pack.py
 
 # Architecture validation
 python test_architecture.py
 ```
 
-Expected output:
-```
-✅ PASS  Supabase connection  — connected
-✅ PASS  Tavily search        — returned 5 results
-⚠️  SKIP  Stripe              — STRIPE_API_KEY not set in .env
-```
-
----
-
-## 📦 Project Structure
+### Project Structure
 
 ```
 DreamAgent/
 ├── backend/
-│   ├── api/           # FastAPI route handlers
-│   ├── core/          # DB models, queues, task routing
-│   ├── agents/        # Agent executor logic
-│   ├── services/      # Business logic (agent, task, conversation services)
-│   ├── llm/           # Universal LLM provider system
-│   ├── tools/         # Web search, news, code execution tools
-│   ├── memory/        # FAISS vector + SQLite memory engine
-│   └── orchestrator/  # Multi-agent pipeline orchestration
-├── frontend of dreamAgent/
-│   └── DreamAgent-v10-UI/  # React + Vite frontend
-│       └── src/
-│           ├── pages/      # Dashboard, Agents, Chat, Builder, Monitoring, Settings
-│           └── components/ # Reusable UI components
-├── integrations/      # Supabase, Tavily, Stripe connectors
-├── connectors/        # Telegram, Discord, WhatsApp bots
-├── docs/
-│   └── screenshots/   # UI screenshots and demo GIF
-├── .env.example       # Environment template
-├── start.bat          # One-click launcher
-└── requirements.txt   # Python dependencies
+│   ├── agents/          # Specialized agents (Planner, Coder, Writer, Research...)
+│   ├── api/             # FastAPI routes (chat, oauth, files, integrations)
+│   ├── builder/         # Multi-agent app builder pipeline
+│   ├── core/            # Infrastructure (Redis lock, execution context, cache)
+│   ├── llm/             # Universal LLM provider abstraction
+│   ├── memory/          # 3-layer memory (session, long-term, core)
+│   ├── oauth/           # OAuth flow management + token security
+│   ├── orchestrator/    # Task controller, DAG planner, state machine, retry handler
+│   ├── services/        # Database services (conversation, memory, bot)
+│   └── tools/           # External API tools (Notion, Slack, etc.)
+├── frontend/            # Chat UI
+├── docs/                # Extended documentation
+├── .env.example         # Environment template
+├── requirements.txt     # Python dependencies
+├── start.bat            # Windows startup script
+└── install.sh           # Linux/Mac startup script
 ```
 
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/orchestrator/task_controller.py` | Main execution engine, DAG orchestrator |
+| `backend/orchestrator/task_state.py` | State machine, checkpoints, observability logs |
+| `backend/core/redis_lock.py` | Distributed lock with heartbeat |
+| `backend/core/execution_context.py` | Async-safe execution ID tracking |
+| `backend/orchestrator/retry_handler.py` | Rate limit + 429 handling |
+| `backend/oauth/oauth_manager.py` | Token management, Fernet encryption |
+| `backend/api/chat_worker.py` | Background task worker, scheduler loops |
+
 ---
 
-## 🤝 Contributing
+## Deployment
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on submitting pull requests.
+### Docker / Podman
+
+```bash
+podman-compose up -d
+# OR
+docker-compose up -d
+```
+
+### Production Checklist
+
+- [ ] Set `ENCRYPTION_KEY` (32-byte base64 Fernet key)
+- [ ] Use PostgreSQL: `DATABASE_URL=postgresql://...`
+- [ ] Point `REDIS_URL` to production Redis/Dragonfly
+- [ ] Set `BACKEND_URL` to your public domain
+- [ ] Configure OAuth redirect URIs to point to production domain
+- [ ] Enable HTTPS (required for OAuth)
+- [ ] Set `MAX_STEPS` appropriate for your compute budget
 
 ---
 
-## 📄 License
+## Security
+
+- **Never commit `.env`** — it is gitignored by default
+- All OAuth tokens are encrypted at rest using **Fernet symmetric encryption**
+- Resume tokens are cryptographically bound to `task_id + user_id` — cannot be replayed across tasks
+- CSRF state parameters include encrypted nonces with 15-minute TTLs
+- Distributed lock prevents concurrent execution of the same task across workers
+- Checkpoint version field prevents stale state replay after code deployments
+
+To report a security vulnerability, please open a private issue or email the maintainers directly.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+**Quick contribution workflow:**
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes
+4. Run tests: `pytest backend/tests/`
+5. Open a Pull Request
+
+---
+
+## License
 
 MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
-  <b>Built with ❤️ by dreamerdkuroshin</b><br>
-  <a href="https://github.com/dreamerdkuroshin/DreamAgent">⭐ Star us on GitHub</a>
+Built with ❤️ — a self-healing autonomous AI agent platform
 </div>

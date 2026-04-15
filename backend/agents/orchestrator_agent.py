@@ -312,10 +312,32 @@ class Orchestrator:
             })
             
             # Execute "fast" directly
-            return await self.executor.execute(
+            fast_answer = await self.executor.execute(
                 step=f"Answer the user query concisely: {user_input}", 
                 context=context
             )
+            
+            publish({
+                "type": "agent", "agent": "guardrail", "role": "system",
+                "status": "running", "content": "🛡️ Guardrail fast-path validation..."
+            })
+            # --- PHASE 1: TRUTH-GRADE GUARDRAIL ---
+            try:
+                from backend.agents.guardrail_agent import GuardrailValidatorAgent
+                guardrail = GuardrailValidatorAgent(llm=self.executor.llm)
+                
+                # Extract URLs from context to pass as raw_context_urls
+                import re
+                extracted_urls = re.findall(r'(https?://[^\s]+)', context)
+                
+                validation = await guardrail.validate(fast_answer, raw_context_urls=extracted_urls, mode="soft")
+                
+                if not validation.get("valid", False):
+                    fast_answer = validation.get("fixed_output", fast_answer)
+            except Exception as e:
+                logger.error(f"[Orchestrator] Guardrail (fast path) failed: {e}")
+                
+            return fast_answer
             
         # Full Autonomous Execution
         steps = plan_data.get("steps", [])
@@ -324,26 +346,38 @@ class Orchestrator:
             "status": "done", "content": f"📋 Multi-Step Plan Generated ({len(steps)} steps):\n" + "\n".join(f"{i+1}. {s}" for i,s in enumerate(steps))
         })
         
-        step_results = []
-        for idx, step in enumerate(steps):
-            publish({
-                "type": "agent", "agent": "executor", "role": "executor",
-                "status": "running", "step": idx, "content": f"⚡ Executing step {idx+1}/{len(steps)}: {step}"
-            })
-            
-            # If the step clearly instructs using a tool (e.g. web search), we would invoke tool_agent.
-            # For this simplified abstraction, the LLM executor decides or acts as a proxy.
-            # Let's execute the step:
-            ctx_bundle = context + "\n\n[Previous Step Results]:\n" + "\n".join(step_results)
-            result = await self.executor.execute(step, context=ctx_bundle)
-            step_results.append(f"Step {idx+1}: {result}")
-            
-            publish({
-                "type": "agent", "agent": "executor", "role": "executor",
-                "status": "done", "step": idx, "content": f"✅ Completed step {idx+1}."
-            })
+        # --- PHASE 2: PARALLEL EXECUTION (Researcher / Tool-Agent) ---
+        publish({
+            "type": "agent", "agent": "orchestrator", "role": "system",
+            "status": "running", "content": f"⚡ Executing {len(steps)} tasks in parallel..."
+        })
+        
+        sem = asyncio.Semaphore(3) # Max 3 concurrent LLM queries
+        
+        async def execute_task(idx, step):
+            async with sem:
+                publish({
+                    "type": "agent", "agent": "executor", "role": "executor",
+                    "status": "running", "step": idx, "content": f"⚡ Executing step {idx+1}/{len(steps)}: {step}"
+                })
+                
+                try:
+                    result = await self.executor.execute(step, context=context)
+                    publish({
+                        "type": "agent", "agent": "executor", "role": "executor",
+                        "status": "done", "step": idx, "content": f"✅ Completed step {idx+1}."
+                    })
+                    return f"Step {idx+1}: {result}"
+                except Exception as e:
+                    publish({
+                        "type": "agent", "agent": "executor", "role": "executor",
+                        "status": "error", "step": idx, "content": f"❌ Failed step {idx+1}."
+                    })
+                    return f"Step {idx+1}: Failed with error: {str(e)}"
+        
+        step_results = await asyncio.gather(*[execute_task(idx, step) for idx, step in enumerate(steps)])
 
-        # Final Synthesis
+        # --- PHASE 3: FINAL SYNTHESIS ---
         publish({
             "type": "agent", "agent": "orchestrator", "role": "orchestrator",
             "status": "running", "content": "🧠 Synthesizing final multi-agent execution map."
@@ -351,5 +385,39 @@ class Orchestrator:
         
         final_prompt = f"Original Goal: {user_input}\nContext:\n{context}\n\nSteps Completed:\n" + "\n".join(step_results) + "\n\nProvide the final output to the user clearly."
         final_answer = await self.executor.think(final_prompt)
+        
+        # --- PHASE 1: TRUTH-GRADE GUARDRAIL ---
+        publish({
+            "type": "agent", "agent": "guardrail", "role": "system",
+            "status": "running", "content": "🛡️ Guardrail Agent validating citations and truthfulness..."
+        })
+        try:
+            from backend.agents.guardrail_agent import GuardrailValidatorAgent
+            guardrail = GuardrailValidatorAgent(llm=self.executor.llm)
+            
+            # Extract URLs from context to pass as raw_context_urls
+            import re
+            extracted_urls = re.findall(r'(https?://[^\s]+)', context + "\n".join(step_results))
+            
+            validation = await guardrail.validate(final_answer, raw_context_urls=extracted_urls, mode="soft")
+            
+            if not validation.get("valid", False):
+                issues_str = "; ".join(validation.get("issues_found", []))
+                publish({
+                    "type": "agent", "agent": "guardrail", "role": "system",
+                    "status": "done", "content": f"⚠️ Guardrail applied fixes. Issues found: {issues_str}"
+                })
+                final_answer = validation.get("fixed_output", final_answer)
+            else:
+                publish({
+                    "type": "agent", "agent": "guardrail", "role": "system",
+                    "status": "done", "content": "✅ Output strictly passed Truth-Grade validation."
+                })
+        except Exception as e:
+            logger.error(f"[Orchestrator] Guardrail failed: {e}")
+            publish({
+                "type": "agent", "agent": "guardrail", "role": "system",
+                "status": "error", "content": "⚠️ Guardrail validation skipped due to error."
+            })
         
         return final_answer

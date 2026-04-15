@@ -38,7 +38,11 @@ class Executor:
             provider = "google" if "google" in tool_name or "gmail" in tool_name else "slack"
             token = await get_active_token(user_id, bot_id, provider)
             if not token:
-                raise Exception(f"No OAuth token available for {provider}")
+                return {
+                    "action": "reauth_required",
+                    "provider": provider,
+                    "message": f"Please connect your {provider.capitalize()} account to continue."
+                }
             
             # Pretend placeholder routing to actual oauth module
             return {"status": "success", "message": f"OAuth tool '{tool_name}' executed securely with token."}

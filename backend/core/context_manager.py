@@ -153,7 +153,11 @@ If the user asks how to connect an API, Auth, Bot, or Integration, provide exact
 - For Web/Logic APIs (Stripe, OpenAI, Anthropic, Tavily, Ahrefs, Groq, etc.): Tell them to simply paste the API key directly in this chat (e.g. "My Stripe key is sk_live_xyz").
 - For Telegram Bots: Instruct them to message BotFather on Telegram to create a bot, copy the token, and paste it here directly (e.g. "My Telegram token is 123456789:ABCdefGHI...").
 - For Google/Gmail/Drive Auth: Ask them to go to Google Cloud Console, create an OAuth 2.0 Client ID (or Service Account), download the JSON credentials, and upload that JSON file directly into this chat to automagically enable Gmail and other APIs.
-- For Microsoft/Slack/Notion OAuth: Advise them to create an App in the respective provider's developer console, and paste their Client ID and Client Secret in this chat (e.g. "My Microsoft Client ID is UUID and secret is ABCxyz").
+- For Notion OAuth (2-step process):
+  Step 1: Go to https://www.notion.so/my-integrations → Click "New Integration" → Give it a name and select your workspace → Under "OAuth Domain & URIs" set redirect URI to http://localhost:8001/api/v1/oauth/notion/callback → Save and copy the OAuth client ID (UUID) and OAuth client secret (starts with secret_). Paste them here like: "My Notion Client ID is UUID and secret is secret_xyz".
+  Step 2: After pasting credentials, I will automatically generate an authorization link. Click it to grant DreamAgent access to your Notion workspace. Once approved, you are fully connected and I can read pages, create tasks, and manage your workspace!
+- For Microsoft OAuth: Go to portal.azure.com, register an App, copy Client ID (UUID) and Client Secret, paste here: "My Microsoft Client ID is UUID and secret is ABCxyz".
+- For Slack OAuth: Go to api.slack.com/apps, create an app, copy Client ID and Client Secret, paste here: "My Slack Client ID is 123.456 and secret is abc123".
 - For Supabase (Auth/DB): Tell them to paste their Project URL and Anon Key directly here (e.g. "My Supabase URL is https://xyz.supabase.co and my key is sb_publishable_...").
 """
 

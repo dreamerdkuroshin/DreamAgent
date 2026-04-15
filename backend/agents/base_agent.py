@@ -49,8 +49,21 @@ class BaseAgent:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        try:
-            return await asyncio.to_thread(self.llm.generate, messages)
-        except Exception as exc:
-            logger.error("LLM call failed in %s: %s", self.role, exc)
-            return f"Error during generation: {exc}"
+        for attempt in range(2):
+            try:
+                return await asyncio.to_thread(self.llm.generate, messages)
+            except TimeoutError:
+                if attempt == 0:
+                    logger.warning("Timeout in %s. Retrying...", self.role)
+                    continue
+                else:
+                    logger.error("LLM timeout failed in %s after retries.", self.role)
+                    return f"Error: Timeout after retries."
+            except Exception as exc:
+                if type(exc).__name__ in ('TimeoutError', 'ReadTimeout', 'ConnectTimeout'):
+                    if attempt == 0:
+                        logger.warning("Network timeout in %s. Retrying...", self.role)
+                        continue
+                logger.error("LLM call failed in %s: %s", self.role, exc)
+                return f"Error during generation: {exc}"
+        return "Error during generation: Unexpected loop exit."

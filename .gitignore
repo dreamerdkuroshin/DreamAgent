@@ -12,12 +12,15 @@ google_credentials*.json
 service_account*.json
 *_credentials.json
 credentials.json
+oauth_token*.json
 
 # ── Databases ───────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
 dreamagent.db
+dreamagent_state.db
+dreamagent_test*.db
 
 # ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
@@ -60,10 +63,15 @@ tmp/
 scratch/
 builder_output/
 *.webp
+libpod/
+archive/
+sandbox/
 
 # ── Test Artifacts ───────────────────────────────────────────────────────────
+test_results/
 test_results.json
 test_res_final.txt
+stress_test_report.md
 
 # ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/
@@ -78,7 +86,7 @@ dist/
 .cache/
 *.tsbuildinfo
 
-# ── Docker ───────────────────────────────────────────────────────────────────
+# ── Docker / Podman ──────────────────────────────────────────────────────────
 *.tar
 
 # ── macOS ────────────────────────────────────────────────────────────────────

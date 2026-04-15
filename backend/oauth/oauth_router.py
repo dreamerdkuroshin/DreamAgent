@@ -8,7 +8,8 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse
 import traceback
 
-from .oauth_manager import get_provider, save_tokens
+from .oauth_manager import get_provider, save_tokens, generate_secure_state, validate_secure_state
+from .providers.base import OAuthException
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
 
@@ -22,8 +23,7 @@ def connect(provider: str, user_id: str, bot_id: str):
         oauth = get_provider(provider)
         
         # We pack user_id and bot_id securely into the OAuth state 
-        # so when they return in the callback, we know where to save the token!
-        state = f"{user_id}::{bot_id}"
+        state = generate_secure_state(user_id, bot_id)
         auth_url = oauth.get_auth_url(state=state)
         
         return RedirectResponse(auth_url)
@@ -39,11 +39,14 @@ async def callback(provider: str, request: Request):
     performing the token exchange, and persisting it to the encrypted Core DB vault.
     """
     state = request.query_params.get("state")
-    if not state or "::" not in state:
+    if not state:
         raise HTTPException(status_code=400, detail="Invalid callback state parameter.")
 
     try:
-        user_id, bot_id = state.split("::", 1)
+        validated = validate_secure_state(state)
+        user_id = validated["user_id"]
+        bot_id = validated["bot_id"]
+        task_id = validated.get("task_id", "")
         
         oauth = get_provider(provider)
         tokens = await oauth.handle_callback(request)
@@ -59,6 +62,14 @@ async def callback(provider: str, request: Request):
             "bot_id": bot_id,
             "message": "Authorization successful. You may close this window and return to DreamAgent."
         }
+    except OAuthException as e:
+        traceback.print_exc()
+        return {
+            "status": "failed",
+            "provider": e.provider,
+            "error": e.message,
+            "action": "reauth_required",
+        }
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"OAuth Flow Failed: {e}")
@@ -67,4 +78,13 @@ async def callback(provider: str, request: Request):
 def status(provider: str, user_id: str, bot_id: str):
     from .oauth_manager import has_token
     connected = has_token(user_id, bot_id, provider)
-    return {"connected": connected, "provider": provider}
+    
+    if not connected:
+        return {
+            "connected": False,
+            "provider": provider,
+            "action": "reauth_required",
+            "last_error": "token_expired_or_missing"
+        }
+        
+    return {"connected": True, "provider": provider}

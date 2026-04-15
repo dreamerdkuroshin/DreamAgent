@@ -173,6 +173,30 @@ def detect_and_store_keys(message: str) -> Dict[str, Any]:
         actions.append(f"saved:{env_var}")
         logger.info(f"[KeyInjector] Stored {env_var} from chat message")
 
+    # ── After saving Notion keys: auto-generate OAuth link if both keys are now present ──
+    notion_id = os.environ.get("NOTION_CLIENT_ID", "")
+    notion_secret = os.environ.get("NOTION_CLIENT_SECRET", "")
+    notion_was_touched = any(
+        f.get("env_var") in ("NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET") for f in found
+    )
+    if notion_was_touched and notion_id and notion_secret:
+        try:
+            from backend.oauth.providers.notion import NotionOAuth
+            notion_oauth = NotionOAuth()
+            auth_url = notion_oauth.get_auth_url(state="local_user::local_bot")
+            found.append({
+                "env_var": "NOTION_AUTH_URL",
+                "label": "Notion Auth URL",
+                "preview": auth_url,
+                "already_set": False,
+                "verification": None,
+                "_notion_auth_url": auth_url,
+            })
+            actions.append("notion:auth_link_generated")
+            logger.info(f"[KeyInjector] Notion OAuth URL generated")
+        except Exception as e:
+            logger.warning(f"[KeyInjector] Could not generate Notion auth URL: {e}")
+
     # Also handle "supabase url is https://..." pattern
     url_match = re.search(r'https://[a-z0-9]+\.supabase\.co', message, re.IGNORECASE)
     if url_match:
@@ -188,8 +212,12 @@ def detect_and_store_keys(message: str) -> Dict[str, Any]:
     if not found:
         return {"found": [], "reply": None, "actions": []}
 
-    new_keys = [f for f in found if not f.get("already_set")]
-    already = [f for f in found if f.get("already_set")]
+    # Separate notion auth URL entry from real keys
+    notion_auth_entry = next((f for f in found if f.get("env_var") == "NOTION_AUTH_URL"), None)
+    real_found = [f for f in found if f.get("env_var") != "NOTION_AUTH_URL"]
+
+    new_keys = [f for f in real_found if not f.get("already_set")]
+    already = [f for f in real_found if f.get("already_set")]
 
     lines = []
     if new_keys:
@@ -201,6 +229,18 @@ def detect_and_store_keys(message: str) -> Dict[str, Any]:
     if already:
         labels = ", ".join(k["label"] for k in already)
         lines.append(f"\n_{labels} was already set with the same value._")
+
+    # Append Notion OAuth step if applicable
+    if notion_auth_entry:
+        auth_url = notion_auth_entry.get("_notion_auth_url", "")
+        lines.append(
+            "\n---\n"
+            "## ✅ Notion Credentials Saved! Now authorize workspace access:\n\n"
+            "**Step 2 — Click the link below to authorize DreamAgent in your Notion workspace:**\n\n"
+            f"👉 [**Authorize Notion Access**]({auth_url})\n\n"
+            "After clicking and approving, Notion will redirect back and your workspace will be fully connected. "
+            "You can then ask me to read pages, create tasks, or manage your Notion workspace!"
+        )
 
     return {
         "found": found,

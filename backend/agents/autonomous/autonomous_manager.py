@@ -47,6 +47,17 @@ class AutonomousManager:
 
             try:
                 result = await self.executor.execute_step(step, user_id, bot_id)
+                
+                # 🛑 Dynamic Auth Interception
+                if isinstance(result, dict) and result.get("action") == "reauth_required":
+                    yield AgentEvent(
+                        type="oauth_reconnect",
+                        message=result.get("message", "Authentication required."),
+                        step_id=step.get("id"),
+                        data=result
+                    ).model_dump()
+                    break  # Pause execution gracefully so user can authenticate
+                
                 step["status"] = "completed"
                 step["result"] = result
                 

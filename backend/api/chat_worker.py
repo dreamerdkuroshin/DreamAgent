@@ -69,6 +69,11 @@ _TOOL_KEYWORD_PATTERNS = {
     "notion": _re.compile(
         r'\b(notion|notion\s*page|create\s*notion)\b', _re.IGNORECASE
     ),
+    "notion_learn": _re.compile(
+        r'(?:learn|explain|teach|exercise|practice|progress\s*in\s*notion).*(?:notion)'
+        r'|(?:notion).*(?:learn|explain|teach|exercise|practice|progress)',
+        _re.IGNORECASE | _re.DOTALL
+    ),
     "microsoft": _re.compile(
         r'\b(outlook|teams|onedrive|microsoft)\b', _re.IGNORECASE
     ),
@@ -192,6 +197,7 @@ async def background_agent_loop(
     bot_id: str = "local_bot",
     file_ids: str = "",
     trust_mode: str = "fast",
+    resume_token: Optional[str] = None,
 ):
     """
     This function runs inside the RQ worker (or synchronously on Windows).
@@ -375,12 +381,110 @@ async def background_agent_loop(
     # 1. Setup Task State Machine
     task_ctx = TaskContext(task_id, user_id=user_id, redis_conn=redis_conn)
     task_ctx.transition(TaskState.ROUTING)
-    
-    # ── OAuth Capability Gate ────────────────────────────────────────────────
-    if _check_oauth_needed(query, user_id, bot_id, task_id, _save_step):
-        task_ctx.transition(TaskState.COMPLETED)
-        TASKS[task_id]["status"] = "completed"
-        return
+
+    # ── Notion Learning Session Handler ──────────────────────────────────────
+    if _TOOL_KEYWORD_PATTERNS.get("notion_learn") and _TOOL_KEYWORD_PATTERNS["notion_learn"].search(query):
+        topic = ""
+        # 1. Try to extract explicit "topic (e.g., ...)" or "topic: ..."
+        topic_match = _re.search(r'topic\s*(?:is|:|\(e\.g\.,)?\s*["“]?([^"”\)]+)["”\)]?', query, _re.IGNORECASE)
+        if topic_match:
+            topic = topic_match.group(1).strip()
+        else:
+            # 2. Try the general "learn X" extraction
+            _LEARN_NOTION_RE = _re.compile(
+                r'(?:learn|teach|explain|practice|exercise)[^.]*?([\w\s\+\-]+?)(?:\s+(?:in|with|on|using|track|to)\s+notion|\s*,?\s*track\s+(?:in|on)?\s*notion)',
+                _re.IGNORECASE | _re.DOTALL
+            )
+            learn_match = _LEARN_NOTION_RE.search(query)
+            if not learn_match:
+                _LEARN_SIMPLE_RE = _re.compile(
+                    r'(?:notion).*?(?:learn|teach|explain|exercise|practice)\s+([\w\s\+\-]+)',
+                    _re.IGNORECASE
+                )
+                learn_match = _LEARN_SIMPLE_RE.search(query)
+            if learn_match:
+                topic = learn_match.group(1).strip().rstrip(".,!?")
+
+        # 3. Fallback: just use a chunk of the query
+        if not topic:
+            topic = query[:40].replace('\n', ' ').strip() + "..."
+
+        if topic:
+            _save_step({
+                "type": "agent", "agent": "notion", "role": "system", "status": "running",
+                "content": f"🧠 Starting Notion Learning Session for: **{topic}**"
+            })
+            _save_step({
+                "type": "agent", "agent": "notion", "role": "system", "status": "running",
+                "content": "📖 Generating concept explanation..."
+            })
+
+            try:
+                from backend.tools.notion_tool import run_learning_session
+                from backend.llm.universal_provider import UniversalProvider
+                llm = UniversalProvider(provider=provider or "auto", model=model or "", mode="AUTO")
+
+                session = await run_learning_session(
+                    topic=topic,
+                    llm=llm,
+                    user_id=user_id,
+                    bot_id=bot_id,
+                )
+
+                if session.get("success"):
+                    notion_url = session.get("notion_page_url", "")
+                    exercises = session.get("exercises", [])
+                    explanation = session.get("explanation", "")
+
+                    result_text = (
+                        f"## Learning Session: {topic}\n\n"
+                        f"### Concept Explanation\n{explanation}\n\n"
+                        f"### Practice Exercises\n"
+                        + "\n".join(f"{i+1}. {ex}" for i, ex in enumerate(exercises))
+                        + f"\n\n### Progress Tracker\n"
+                        f"Your learning tracker has been created in Notion!\n\n"
+                        f"[Open in Notion]({notion_url})\n\n"
+                        f"Complete the exercises and check them off in Notion to track your progress."
+                    )
+                else:
+                    err = session.get("message", "Unknown error")
+                    result_text = (
+                        f"## Learning Session: {topic}\n\n"
+                        f"I generated everything, but Notion sync failed:\n_{err}_\n\n"
+                        f"**Explanation:**\n{session.get('explanation', '')}\n\n"
+                        f"**Exercises:**\n"
+                        + "\n".join(f"{i+1}. {ex}" for i, ex in enumerate(session.get("exercises", [])))
+                    )
+
+                _save_step({"type": "agent", "agent": "notion", "role": "system", "status": "done",
+                            "content": "Learning session complete!"})
+
+                # Save & stream result
+                for i in range(0, len(result_text), 8):
+                    _save_step({"type": "token", "content": result_text[i:i+8]})
+                    await asyncio.sleep(0.005)
+
+                saved_msg_id = None
+                if convo_id:
+                    from backend.core.database import SessionLocal
+                    from backend.services import conversation_service
+                    with SessionLocal() as db:
+                        msg = conversation_service.create_message(db, int(convo_id), "assistant", result_text, provider="notion", model="learning_tracker")
+                        if msg:
+                            saved_msg_id = msg.id
+
+                TASKS[task_id]["status"] = "completed"
+                _save_step({"type": "final", "content": "", "provider": "notion", "model": "learning_tracker",
+                            "persisted": saved_msg_id is not None, "msg_id": saved_msg_id})
+                return
+
+            except Exception as e:
+                logger.error(f"[NotionLearn] Failed: {e}", exc_info=True)
+                _save_step({"type": "agent", "agent": "notion", "role": "system", "status": "error",
+                            "content": f"Notion learning session failed: {e}. Falling back to standard response."})
+                # Fall through to standard orchestrator
+
+    # ── Task Execution ───────────────────────────────────────────────────────
 
     # ── Multi-Task Splitting ────────────────────────────────────────────────
     sub_tasks = split_tasks(query)
@@ -401,74 +505,77 @@ async def background_agent_loop(
     from backend.orchestrator.task_controller import TaskController
     controller = TaskController(provider=provider, model=model, trust_mode=trust_mode)
     
-    all_results = []
-    
+    if query.startswith("RESUME_TASK:") and resume_token:
+        target_id = query.split(":", 1)[1]
+        logger.info(f"[ChatWorker] Resuming task {target_id} with token {resume_token[:10]}...")
+        result = await controller.resume(
+            task_id=target_id,
+            resume_token=resume_token,
+            publish=_save_step,
+            user_id=user_id,
+            bot_id=bot_id
+        )
+        # Process result for resume (similar to standard task)
+        all_results = [result]
+    else:
+        all_results = []
+        previous_output = ""
+        try:
+            for i, sub_query in enumerate(sub_tasks):
+                effective_query = sub_query
+                if is_multi_task:
+                    if mode == "chain" and previous_output:
+                        effective_query = f"Context from previous task:\n{previous_output}\n\nCurrent Task:\n{sub_query}"
+                    _save_step({
+                        "type": "step",
+                        "content": f"🔹 Task {i+1}/{len(sub_tasks)}: {sub_query[:80]}...",
+                        "agent": "controller"
+                    })
+                from backend.orchestrator.priority_router import detect_intent
+                intent = detect_intent(effective_query)
+                if intent == "builder":
+                    from backend.builder.multi_agent_builder import multi_agent_build
+                    from backend.core.context_manager import get_agent_context
+                    context = get_agent_context(user_id=user_id, bot_id=bot_id)
+                    prefs = context.get("builder_preferences", {})
+                    files, spec = await multi_agent_build(user_request=effective_query, prefs=prefs, provider=provider, model=model, publish_event=_save_step)
+                    md_response = "🚀 **Builder Pipeline Complete!**\n\nHere are your generated files:\n\n"
+                    for fname, content in files.items():
+                        ext = fname.split('.')[-1]
+                        md_response += f"### {fname}\n```{ext}\n{content}\n```\n\n"
+                    result = md_response
+                else:
+                    result = await controller.run(query=effective_query, task_id=task_id, publish=_save_step, bot_id=bot_id, user_id=user_id, file_ids=file_ids, trust_mode=trust_mode)
+                all_results.append(result)
+                previous_output = trim_context(result)
+                if "⏸️" in result or "⏳" in result:
+                    break
+        except Exception:
+            raise
+
     def trim_context(text: str, max_chars: int = 1000) -> str:
         if not text:
             return ""
         return text if len(text) <= max_chars else text[:max_chars] + "\n...[truncated]"
 
-    previous_output = ""
-
+    # ── Finalize Results ──────────────────────────────────────────────────────
     try:
-        for i, sub_query in enumerate(sub_tasks):
-            effective_query = sub_query
-            if is_multi_task:
-                if mode == "chain" and previous_output:
-                    effective_query = f"Context from previous task:\n{previous_output}\n\nCurrent Task:\n{sub_query}"
-                _save_step({
-                    "type": "step",
-                    "content": f"🔹 Task {i+1}/{len(sub_tasks)}: {sub_query[:80]}...",
-                    "agent": "controller"
-                })
-
-            from backend.orchestrator.priority_router import detect_intent
-            intent = detect_intent(effective_query)
-            
-            if intent == "builder":
-                from backend.builder.multi_agent_builder import multi_agent_build
-                from backend.core.context_manager import get_agent_context
-                
-                context = get_agent_context(user_id=user_id, bot_id=bot_id)
-                prefs = context.get("builder_preferences", {})
-                
-                files, spec = await multi_agent_build(
-                    user_request=effective_query,
-                    prefs=prefs,
-                    provider=provider,
-                    model=model,
-                    publish_event=_save_step
-                )
-                
-                md_response = "🚀 **Builder Pipeline Complete!**\n\nHere are your generated files:\n\n"
-                for fname, content in files.items():
-                    ext = fname.split('.')[-1]
-                    md_response += f"### {fname}\n```{ext}\n{content}\n```\n\n"
-                result = md_response
-            else:
-                result = await controller.run(
-                    query=effective_query,
-                    task_id=task_id,
-                    publish=_save_step,
-                    bot_id=bot_id,
-                    user_id=user_id,
-                    file_ids=file_ids,
-                    trust_mode=trust_mode
-                )
-            
-            all_results.append(result)
-            previous_output = trim_context(result)
-
         # Combine results for multi-task
         if is_multi_task:
             combined = "\n\n---\n\n".join(
                 f"**Task {i+1}:** {sub_tasks[i]}\n\n{res}"
                 for i, res in enumerate(all_results)
-                if res
+                if res and "⏸️" not in res and "⏳" not in res
             )
             result = combined
         else:
-            result = all_results[0] if all_results else ""
+            result = all_results[-1] if all_results else ""
+            
+        if "⏸️" in result or "⏳" in result:
+            # Task has been paused or deferred for retries. Do NOT mark completed.
+            TASKS[task_id]["status"] = "paused" if "⏸️" in result else "retrying"
+            _save_step({"type": "final", "content": ""})  # Trigger frontend SSE close
+            return
         
         # Stream the final result as tokens if the agent didn't stream inline
         if result and not any(s.get("type") == "token" for s in TASKS[task_id]["steps"]):
@@ -509,3 +616,100 @@ async def background_agent_loop(
         TASKS[task_id]["status"] = "error"
         
     logger.info(f"Finished background_agent_loop for task {task_id}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Autonomous Engine: Scheduler & Cleanup
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def retry_scheduler_loop():
+    """Periodically checks the ZSET for tasks ready to be retried."""
+    if not redis_conn: return
+    logger.info("[Scheduler] Starting Retry Scheduler Loop...")
+    while True:
+        try:
+            import time
+            from backend.orchestrator.task_controller import TaskController
+            now = time.time()
+            # Get tasks whose score (wait_until) is <= now
+            ready_tasks = redis_conn.zrangebyscore("tasks:scheduled_retries", 0, now)
+            
+            for task_id_raw in ready_tasks:
+                task_id = task_id_raw.decode() if isinstance(task_id_raw, bytes) else task_id_raw
+                checkpoint_raw = redis_conn.hget("tasks:checkpoints", task_id)
+                if checkpoint_raw:
+                    checkpoint = json.loads(checkpoint_raw)
+                    user_id = checkpoint.get("user_id", "local_user")
+                    # Remove from scheduler
+                    redis_conn.zrem("tasks:scheduled_retries", task_id)
+                    redis_conn.hdel("tasks:checkpoints", task_id)
+                    
+                    logger.info(f"[Scheduler] Auto-resuming task {task_id} after rate-limit backoff.")
+                    # Re-enqueue. For now, calling it in background here.
+                    # In a bigger system, this would be `enqueue_task(...)`
+                    asyncio.create_task(background_agent_loop(
+                        query=checkpoint.get("original_query", ""),
+                        task_id=task_id,
+                        user_id=user_id,
+                        bot_id=checkpoint.get("bot_id", "local_bot")
+                    ))
+        except Exception as e:
+            logger.error(f"[Scheduler] Loop error: {e}")
+            
+        await asyncio.sleep(5)  # Poll every 5 seconds
+
+async def zombie_cleanup_loop():
+    """Cleans up PAUSED or RETRYING tasks that haven't been touched in 24h."""
+    logger.info("[Cleanup] Starting Zombie Purge Loop...")
+    while True:
+        try:
+            import time
+            from backend.orchestrator.task_state import TaskState
+            now = time.time()
+            if redis_conn:
+                tasks_raw = redis_conn.keys("task:*:state")
+                for key in tasks_raw:
+                    state_raw = redis_conn.get(key)
+                    if state_raw:
+                        data = json.loads(state_raw)
+                        state = data.get("state")
+                        updated_at = data.get("updated_at", 0)
+                        
+                        if state in ["paused", "retrying"]:
+                            checkpoint = data.get("checkpoint", {})
+                            completed_steps = checkpoint.get("completed_steps", {}) if isinstance(checkpoint, dict) else {}
+                            dynamic_timeout = 3600 + (len(completed_steps) * 600)
+                            
+                            if (now - updated_at) > dynamic_timeout:
+                                task_id = key.decode().split(":")[1] if isinstance(key, bytes) else key.split(":")[1]
+                                logger.info(f"[Cleanup] Purging zombie task {task_id} (inactive for {now - updated_at}s in {state} state).")
+                                # Also log transition explicitly since we are mimicking the state machine
+                                redis_conn.set(key, json.dumps({**data, "state": "failed", "error": f"Task timed out dynamically after {dynamic_timeout}s in {state} state."}))
+                                
+                                # Log transition
+                                log_entry = {
+                                    "task_id": task_id,
+                                    "old_state": state,
+                                    "new_state": "failed",
+                                    "timestamp": time.time(),
+                                    "message": f"Task timed out dynamically after {dynamic_timeout}s in {state} state."
+                                }
+                                redis_conn.rpush(f"tasks:{task_id}:state_log", json.dumps(log_entry))
+                                redis_conn.expire(f"tasks:{task_id}:state_log", 604800)
+        except Exception as e:
+            logger.error(f"[Cleanup] Loop error: {e}")
+            
+        await asyncio.sleep(60)  # Check every minute since timeouts are much shorter now
+
+# Auto-start loops
+def start_engine_loops():
+    loop = asyncio.get_event_loop()
+    loop.create_task(retry_scheduler_loop())
+    loop.create_task(zombie_cleanup_loop())
+
+if redis_conn:
+    try:
+        start_engine_loops()
+    except Exception as e:
+        logger.warning(f"Failed to start engine loops: {e}")
+

@@ -23,6 +23,8 @@ from backend.orchestrator.task_state import TaskContext, TaskState, BudgetExceed
 from backend.core.pipeline_guard import guarded_execute, execute_step_safe
 from backend.orchestrator.dag_planner import dag_planner
 from backend.orchestrator.synthesizer import synthesizer
+from backend.core.redis_lock import RedisLock
+from backend.oauth.oauth_manager import validate_resume_token, get_active_token
 
 # Try importing the necessary pipeline agents
 try:
@@ -75,6 +77,82 @@ class TaskController:
         # Instantiate execution agents
         self.planner = PlannerAgent(self.llm)
         self.executor = ExecutorAgent(self.llm)
+
+    async def resume(
+        self,
+        task_id: str,
+        resume_token: str,
+        publish: Callable[[dict], None],
+        user_id: str = "local_user",
+        bot_id: str = "local_bot",
+        skip_node: bool = False
+    ) -> str:
+        """
+        Resumes a paused task after user re-authentication.
+        Implements strict lock ownership validation.
+        """
+        # 1. Validate Resume Token
+        if not validate_resume_token(resume_token, task_id, user_id):
+            publish({"type": "error", "content": "Invalid or expired resume token. Authentication required."})
+            return "Error: Invalid resume token."
+
+        from backend.core.task_queue import redis_conn
+        lock = RedisLock(redis_conn, f"task:{task_id}:lock")
+        
+        if not await lock.acquire():
+            publish({"type": "error", "content": "Task is already being resumed by another worker."})
+            return "Error: Race condition detected."
+
+        try:
+            # 2. Load Task Context
+            task_ctx = TaskContext(task_id, user_id, redis_conn=redis_conn)
+            task_ctx._lock = lock  # Attach for split-brain guard during wave execution
+            # Potentially load from Redis if checkpoint was stored there
+            if redis_conn:
+                stored = redis_conn.get(f"task:{task_id}:state")
+                if stored:
+                    data = json.loads(stored)
+                    task_ctx.checkpoint = data.get("checkpoint", {})
+                    task_ctx.state = TaskState(data.get("state", "paused"))
+            
+            if not task_ctx.checkpoint:
+                publish({"type": "error", "content": "No checkpoint found to resume from."})
+                return "Error: Missing checkpoint."
+
+            # 3. Checkpoint Version Guard — prevents resume drift after code deploys
+            from backend.orchestrator.task_state import CHECKPOINT_VERSION
+            ckpt_version = task_ctx.checkpoint.get("version", "unknown")
+            if ckpt_version != CHECKPOINT_VERSION:
+                logger.warning(f"[Resume] Checkpoint version mismatch: {ckpt_version} != {CHECKPOINT_VERSION} for task {task_id}")
+                publish({
+                    "type": "step",
+                    "content": f"⚠️ Checkpoint version mismatch (saved={ckpt_version}, current={CHECKPOINT_VERSION}). Restarting task from scratch for safety.",
+                    "agent": "controller"
+                })
+                # Clear stale checkpoint — will do full re-run from query
+                original_query = task_ctx.checkpoint.get("original_query", "")
+                task_ctx.checkpoint = {"completed_steps": {}, "original_query": original_query, "version": CHECKPOINT_VERSION}
+
+            publish({"type": "step", "content": "🔄 Resuming task from checkpoint...", "agent": "controller"})
+            
+            # 4. Transition back to RUNNING
+            task_ctx.transition(TaskState.RUNNING)
+            query = task_ctx.checkpoint.get("original_query", "")
+            
+            # 4. Re-run inner logic with checkpoint awareness
+            # (In a real DAG, we'd start from the node_id after re-calculating waves)
+            # For this MVP continuation engine, we use the _run_parallel_plan but it will skip finished nodes.
+            return await self._run_parallel_plan(
+                query=query,
+                context={}, # Will be re-loaded inside
+                file_context_str="", # Loaded from memory in _run_inner usually
+                task_ctx=task_ctx,
+                publish=publish,
+                user_id=user_id,
+                bot_id=bot_id
+            )
+        finally:
+            await lock.release()
 
     async def run(
         self,
@@ -316,7 +394,13 @@ class TaskController:
 
 [INSTRUCTIONS]
 {memory_instruction}
-Answer directly and accurately. Do not hallucinate."""
+Answer directly and accurately. Do not hallucinate.
+
+[CITATION MANDATE]
+1. Every factual claim MUST be followed by [Source: URL].
+2. If no URL is available for a claim in the provided context, you MUST append "[⚠️ Missing verifiable source URL]".
+3. DO NOT use naming-only citations like "(Source: Google)".
+4. Maintain strict claim-source pairing."""
 
         publish({
             "type": "agent",
@@ -326,7 +410,12 @@ Answer directly and accurately. Do not hallucinate."""
             "content": "Processing..."
         })
 
-        result = await self.llm.complete(prompt)
+        raw_result = await self.llm.complete(prompt)
+        
+        # Apply programmatic Truth-Grade enforcement
+        from backend.orchestrator.synthesizer import enforce_citations
+        result_tuple = enforce_citations(raw_result.strip())
+        result = result_tuple[0]
 
         # Store both turns in memory (session + long-term extraction)
         await memory_engine.process_and_store(
@@ -406,17 +495,51 @@ Answer directly and accurately. Do not hallucinate."""
             wave = pending_waves.pop(0)
             wave_start = time.time()
             total_steps_executed += len(wave)
+
+            # ————————————————————————————————————————————————
+            # Split-Brain Guard: validate this worker still owns the execution lease
+            # before processing each wave. Aborts immediately on mismatch.
+            if hasattr(task_ctx, "_lock") and task_ctx._lock:
+                if not task_ctx._lock.is_owner():
+                    logger.error(f"[TaskController] 🛑 Split-brain abort: worker lost lock ownership for task {task_ctx.task_id}")
+                    task_ctx.transition(TaskState.FAILED)
+                    task_ctx.error = "Split-brain detected: lock ownership lost to another worker."
+                    publish({"type": "error", "content": "⚠️ Execution aborted: concurrent workers detected."})
+                    return "❌ Execution aborted: lock ownership lost."
+            # ————————————————————————————————————————————————
             
-            wave_coroutines = [
-                execute_step_safe(
-                    self._execute_one_step,
-                    step.task,
-                    context_str + "\n" + "\n".join([r['content'] for r in all_step_results]),
-                    timeout=STEP_TIMEOUT_SECONDS,
-                    step_label=step.id
+            wave_coroutines = []
+            for step in wave:
+                # Two-Level Idempotency logic: check if step already completed from checkpoint
+                if task_ctx.checkpoint and hasattr(task_ctx, "checkpoint"):
+                    completed = task_ctx.checkpoint.setdefault("completed_steps", {})
+                    already_done = completed.get(step.id)
+                    if already_done and already_done.get("status") == "completed":
+                        publish({"type": "step", "content": f"⏭️ Skipping completed step: {step.id}", "agent": "orchestrator"})
+                        wave_coroutines.append(asyncio.sleep(0, result=already_done.get("content", "Skipped")))
+                        continue
+                
+                # Context Var injection for Tool Level Idempotency
+                from backend.core.execution_context import set_execution_id
+                exec_id = f"{task_ctx.task_id}:{step.id}"
+                
+                async def _wrapped_execute(s, c, e_id):
+                    t = set_execution_id(e_id)
+                    try:
+                        return await execute_step_safe(
+                            self._execute_one_step,
+                            s.task,
+                            c,
+                            timeout=STEP_TIMEOUT_SECONDS,
+                            step_label=s.id
+                        )
+                    finally:
+                        from backend.core.execution_context import current_execution_id
+                        current_execution_id.reset(t)
+
+                wave_coroutines.append(
+                    _wrapped_execute(step, context_str + "\n" + "\n".join([r['content'] for r in all_step_results]), exec_id)
                 )
-                for step in wave
-            ]
             
             raw_results = await asyncio.gather(*wave_coroutines, return_exceptions=True)
             wave_end = time.time()
@@ -431,9 +554,96 @@ Answer directly and accurately. Do not hallucinate."""
             
             for idx, res in enumerate(raw_results):
                 step = wave[idx]
+                
+                # Intercept strict Dict signals (Rate Limit / Auth)
+                if isinstance(res, dict):
+                    if res.get("action") == "reauth_required":
+                        provider_req = res.get("provider", "unknown")
+                        publish({"type": "agent", "status": "paused", "agent": "orchestrator", "content": f"⏸️ Task paused: Auth required for {provider_req}."})
+                        
+                        # Generate bound resume contract
+                        from backend.oauth.oauth_manager import generate_resume_token
+                        resume_token = generate_resume_token(task_ctx.task_id, user_id)
+                        import os
+                        b_url = os.getenv("BACKEND_URL", "http://localhost:8001")
+                        publish({
+                            "type": "oauth_reconnect",
+                            "provider": provider_req,
+                            "url": f"{b_url}/api/v1/oauth/{provider_req}/connect?task_id={task_ctx.task_id}",
+                            "message": f"Reconnect {provider_req.capitalize()} to continue this task.",
+                            "task_id": task_ctx.task_id,
+                            "resume_token": resume_token,
+                            "expires_in": 900,
+                            "fallback": "task_cancel",
+                            "can_skip": True
+                        })
+                        
+                        # Set Checkpoint and PAUSE
+                        task_ctx.checkpoint = {
+                            "node_id": step.id,
+                            "failed_provider": provider_req,
+                            "completed_steps": task_ctx.checkpoint.get("completed_steps", {}),
+                            "step_outputs": all_step_results,
+                            "original_query": query
+                        }
+                        task_ctx.transition(TaskState.PAUSED)
+                        return "⏸️ Execution Paused: User Action Required (Authentication)."
+                        
+                    elif res.get("action") == "retry_later":
+                        wait_t = res.get("retry_after", 10)
+                        publish({"type": "step", "content": f"⏳ Rate limit hit. Scheduling retry in {wait_t}s...", "agent": "controller"})
+                        task_ctx.checkpoint = {
+                            "node_id": step.id,
+                            "completed_steps": task_ctx.checkpoint.get("completed_steps", {}),
+                            "step_outputs": all_step_results,
+                            "original_query": query
+                        }
+                        task_ctx.transition(TaskState.RETRYING)
+                        # Push to ZSET with jitter to prevent thundering-herd on 429
+                        from backend.core.task_queue import redis_conn
+                        if redis_conn:
+                            import random
+                            jitter = random.uniform(0, wait_t * 0.5)
+                            run_at = time.time() + wait_t + jitter
+                            logger.info(f"[TaskController] Scheduling retry for {task_ctx.task_id} at t+{wait_t:.1f}s + {jitter:.1f}s jitter")
+                            redis_conn.zadd("tasks:scheduled_retries", {task_ctx.task_id: run_at})
+                            redis_conn.hset("tasks:checkpoints", task_ctx.task_id, json.dumps(task_ctx.checkpoint))
+                        return f"⏳ Execution Deferred: Rate Limit hit. Retrying in {wait_t:.0f} seconds."
+
                 if isinstance(res, Exception):
+                    # Tool strings that have action dicts parsed incorrectly
+                    if "reauth_required" in str(res):
+                        provider_req = "notion" # heuristic for standard exceptions
+                        if "slack" in str(res).lower(): provider_req = "slack"
+                        elif "google" in str(res).lower(): provider_req = "google"
+                        from backend.oauth.oauth_manager import generate_resume_token
+                        resume_token = generate_resume_token(task_ctx.task_id, user_id)
+                        import os
+                        b_url = os.getenv("BACKEND_URL", "http://localhost:8001")
+                        publish({
+                            "type": "oauth_reconnect",
+                            "provider": provider_req,
+                            "url": f"{b_url}/api/v1/oauth/{provider_req}/connect?task_id={task_ctx.task_id}",
+                            "message": f"Reconnect {provider_req.capitalize()} to continue this task.",
+                            "task_id": task_ctx.task_id,
+                            "resume_token": resume_token,
+                            "expires_in": 900,
+                            "fallback": "task_cancel",
+                            "can_skip": True
+                        })
+                        task_ctx.checkpoint = {
+                            "node_id": step.id,
+                            "failed_provider": provider_req,
+                            "completed_steps": task_ctx.checkpoint.get("completed_steps", {}),
+                            "step_outputs": all_step_results,
+                            "original_query": query
+                        }
+                        task_ctx.transition(TaskState.PAUSED)
+                        return "⏸️ Execution Paused: User Action Required (Authentication)."
+
                     error_msg = f"Step {step.id} failed: [ERROR] {type(res).__name__}: {res}"
-                    all_step_results.append({"content": error_msg, "is_error": True, "id": step.id})
+                    all_step_results.append({"content": error_msg, "is_error": True, "id": step.id, "status": "failed"})
+                    task_ctx.checkpoint.setdefault("completed_steps", {})[step.id] = {"content": error_msg, "is_error": True, "status": "failed"}
                     publish({"type": "error", "content": f"⚠️ {error_msg}", "agent": "executor"})
                     await memory_engine.process_and_store(error_msg, user_id=user_id, bot_id=bot_id, role="system")
                     wave_failed = True
@@ -441,7 +651,9 @@ Answer directly and accurately. Do not hallucinate."""
                     failed_error_msg = str(res)
                 else:
                     success_msg = f"Step {step.id} result: {res}"
-                    all_step_results.append({"content": success_msg, "is_error": False, "id": step.id})
+                    all_step_results.append({"content": success_msg, "is_error": False, "id": step.id, "status": "completed"})
+                    task_ctx.checkpoint.setdefault("completed_steps", {})[step.id] = {"content": success_msg, "is_error": False, "status": "completed"}
+                    
                     await memory_engine.process_and_store(
                         f"Task: {step.task}\nResult: {res}",
                         user_id=user_id, bot_id=bot_id, role="assistant"
@@ -505,14 +717,33 @@ Answer directly and accurately. Do not hallucinate."""
         # Real Hallucination & Quality Metrics
         has_research_warning = any("Historical Estimate" in str(r) or "No Real-Time Data" in str(r) for r in all_step_results)
         
+        # Synthesis
+        publish({
+            "type": "agent",
+            "agent": "orchestrator",
+            "role": "orchestrator",
+            "status": "running",
+            "content": "🧠 Synthesizing results and calculating metrics..."
+        })
+
+        final_answer, missing_c, grouped_c = await synthesizer.synthesize(
+            goal=query,
+            step_results=all_step_results,
+            context_block=context_str,
+            llm=self.llm
+        )
+
         # Absolute Truth Confidence Score [0-100]
         # Signal: Missing real-time data (-20), Semantic misalignment (-25), Unresolved contradiction (-15), Replan (-5), Critic retries > 2 (-10)
+        # Post-Synthesis Signal: Missing/invalid citation (-30), Grouped citation (-40)
         truth_score = 100
         if has_research_warning: truth_score -= 20
         truth_score -= (semantic_misalignments * 25)
         truth_score -= (unresolved_contradictions * 15)
         truth_score -= (recoveries * 5)
         if critic_retry_spikes > 1: truth_score -= 10
+        truth_score -= (missing_c * 30)
+        truth_score -= (grouped_c * 40)
         
         truth_score = max(0, truth_score)
         
@@ -546,22 +777,6 @@ Answer directly and accurately. Do not hallucinate."""
             "misalignments": semantic_misalignments,
             "contradictions": unresolved_contradictions
         })
-
-        # Synthesis
-        publish({
-            "type": "agent",
-            "agent": "orchestrator",
-            "role": "orchestrator",
-            "status": "running",
-            "content": "🧠 Synthesizing results and calculating metrics..."
-        })
-
-        final_answer = await synthesizer.synthesize(
-            goal=query,
-            step_results=all_step_results,
-            context_block=context_str,
-            llm=self.llm
-        )
 
         final_answer += metrics_card
 

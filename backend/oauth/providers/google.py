@@ -11,7 +11,7 @@ import httpx
 from urllib.parse import urlencode
 from fastapi import Request
 from typing import Dict, Any
-from .base import BaseOAuthProvider
+from .base import BaseOAuthProvider, OAuthException
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -28,13 +28,20 @@ SCOPES = [
 class GoogleOAuth(BaseOAuthProvider):
     name = "google"
 
+    @property
+    def client_id(self):
+        return os.getenv("GOOGLE_CLIENT_ID", "")
+
+    @property
+    def client_secret(self):
+        return os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    @property
+    def redirect_uri(self):
+        return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8001/api/v1/oauth/google/callback")
+
     def __init__(self):
-        self.client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-        self.client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        self.redirect_uri = os.getenv(
-            "GOOGLE_REDIRECT_URI",
-            "http://localhost:8001/api/v1/oauth/google/callback"
-        )
+        pass
 
     def get_auth_url(self, state: str) -> str:
         params = {
@@ -51,6 +58,9 @@ class GoogleOAuth(BaseOAuthProvider):
 
     async def handle_callback(self, request: Request) -> Dict[str, Any]:
         code = request.query_params.get("code")
+        if not code:
+            raise OAuthException("google", "Missing authorization code")
+
         async with httpx.AsyncClient() as client:
             resp = await client.post(GOOGLE_TOKEN_URL, data={
                 "code": code,
@@ -59,7 +69,13 @@ class GoogleOAuth(BaseOAuthProvider):
                 "redirect_uri": self.redirect_uri,
                 "grant_type": "authorization_code",
             })
+
+        if resp.status_code != 200:
+            raise OAuthException("google", f"HTTP error {resp.status_code}: {resp.text}")
+
         data = resp.json()
+        if "error" in data:
+            raise OAuthException("google", data.get("error_description", data.get("error")))
 
         # ✅ Capture scope from Google's response (populated when include_granted_scopes=true)
         scope = data.get("scope", " ".join(SCOPES))

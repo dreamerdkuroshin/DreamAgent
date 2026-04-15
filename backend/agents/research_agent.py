@@ -17,8 +17,10 @@ Your goal is to extract facts, analyze trends, discover competitors, and synthes
 Guidelines:
 1. Provide accurate, data-driven insights. Ground your answer in the provided search data.
 2. CITATION MANDATE: Every factual claim MUST be followed by its source inline as [Source: URL]. You MUST only use URLs provided in the web search data.
-3. Do not invent facts or fake URLs. If information is missing, explicitly state "Data unavailable".
-4. When asked about competitors or trends, categorize them logically.
+3. FALLBACK: If a claim is essential but no URL is provided in the search context, you MUST append "[⚠️ Missing verifiable source URL]".
+4. FORBIDDEN: Do not use named citations like "(Source: Google)".
+5. Do not invent facts or fake URLs. If information is missing, explicitly state "Data unavailable".
+6. When asked about competitors or trends, categorize them logically.
 """
 
 class ResearchAgent(BaseAgent):

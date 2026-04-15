@@ -9,7 +9,8 @@ import time
 import httpx
 from fastapi import Request
 from typing import Dict, Any
-from .base import BaseOAuthProvider
+from urllib.parse import urlencode
+from .base import BaseOAuthProvider, OAuthException
 
 MS_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
@@ -27,10 +28,20 @@ SCOPES = [
 class MicrosoftOAuth(BaseOAuthProvider):
     name = "microsoft"
 
+    @property
+    def client_id(self):
+        return os.getenv("MICROSOFT_CLIENT_ID", "")
+
+    @property
+    def client_secret(self):
+        return os.getenv("MICROSOFT_CLIENT_SECRET", "")
+
+    @property
+    def redirect_uri(self):
+        return os.getenv("MICROSOFT_REDIRECT_URI", "http://localhost:8001/api/v1/oauth/microsoft/callback")
+
     def __init__(self):
-        self.client_id = os.getenv("MICROSOFT_CLIENT_ID", "")
-        self.client_secret = os.getenv("MICROSOFT_CLIENT_SECRET", "")
-        self.redirect_uri = os.getenv("MICROSOFT_REDIRECT_URI", "http://localhost:8000/api/v1/oauth/microsoft/callback")
+        pass
 
     def get_auth_url(self, state: str) -> str:
         params = {
@@ -41,11 +52,12 @@ class MicrosoftOAuth(BaseOAuthProvider):
             "response_mode": "query",
             "state": state,
         }
-        query = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{MS_AUTH_URL}?{query}"
-
+        return f"{MS_AUTH_URL}?{urlencode(params)}"
     async def handle_callback(self, request: Request) -> Dict[str, Any]:
         code = request.query_params.get("code")
+        if not code:
+            raise OAuthException("microsoft", "Missing authorization code")
+
         async with httpx.AsyncClient() as client:
             resp = await client.post(MS_TOKEN_URL, data={
                 "code": code,
@@ -55,7 +67,14 @@ class MicrosoftOAuth(BaseOAuthProvider):
                 "grant_type": "authorization_code",
                 "scope": " ".join(SCOPES),
             })
+
+        if resp.status_code != 200:
+            raise OAuthException("microsoft", f"HTTP error {resp.status_code}: {resp.text}")
+
         data = resp.json()
+        if "error" in data:
+            raise OAuthException("microsoft", data.get("error_description", data.get("error")))
+
         return {
             "access_token": data.get("access_token"),
             "refresh_token": data.get("refresh_token"),

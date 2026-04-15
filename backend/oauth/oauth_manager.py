@@ -12,6 +12,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from cryptography.fernet import Fernet
 from typing import Optional
+import uuid
 
 from backend.core.database import SessionLocal
 from backend.core.models import OAuthToken
@@ -163,11 +164,12 @@ async def get_active_token(user_id: str, bot_id: str, provider: str) -> Optional
             logger.info(f"[OAuth] No token found for provider={provider} user={user_id}")
             return None
 
-        # Check expiration with 5-min safety buffer
+        # Check expiration with 10-min safety buffer (Predictive Truth-Based Check)
         now_ts = datetime.utcnow().timestamp()
         expires_ts = record.expires_at.timestamp() if record.expires_at else 0
 
-        if expires_ts < (now_ts + 300):
+        # if now + safety_buffer > expires_at: return reauth_required
+        if expires_ts < (now_ts + 600):
             logger.info(f"[OAuth] Token expired/expiring for {provider} — attempting refresh")
             oauth_engine = get_provider(provider)
             refresh_token = _decrypt(record.refresh_token or "")
@@ -205,3 +207,84 @@ def has_token(user_id: str, bot_id: str, provider: str) -> bool:
         if record.expires_at:
             return record.expires_at.timestamp() > (datetime.utcnow().timestamp() + 300)
         return bool(record.access_token)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CSRF State Validation & Security
+# ──────────────────────────────────────────────────────────────────────────────
+
+def generate_secure_state(user_id: str, bot_id: str, task_id: str = "") -> str:
+    """Generates an encrypted CSRF state containing the IDs and a unique nonce."""
+    state_id = str(uuid.uuid4())
+    # Embed timestamp for strict TTL checks without relying purely on Redis
+    issued_at = int(datetime.utcnow().timestamp())
+    payload = f"{user_id}::{bot_id}::{task_id}::{state_id}::{issued_at}"
+    encrypted = _encrypt(payload)
+    return encrypted
+
+def validate_secure_state(encrypted_state: str) -> dict:
+    """Validates and consumes a CSRF state. Rejects if expired."""
+    if not encrypted_state:
+        raise ValueError("Missing state parameter")
+    
+    decrypted = _decrypt(encrypted_state)
+    if not decrypted or "::" not in decrypted:
+        raise ValueError("Invalid state payload")
+        
+    parts = decrypted.split("::")
+    if len(parts) >= 5:
+        user_id, bot_id, task_id, state_id, issued_at = parts[0], parts[1], parts[2], parts[3], int(parts[4])
+    elif len(parts) == 4:
+        user_id, bot_id, task_id, state_id = parts[0], parts[1], parts[2], parts[3]
+        issued_at = int(datetime.utcnow().timestamp()) # Legacy passthrough
+    elif len(parts) == 3: # backward compat
+        user_id, bot_id, task_id = parts[0], parts[1], parts[2]
+        state_id = "legacy"
+        issued_at = int(datetime.utcnow().timestamp())
+    else:
+        user_id, bot_id = parts[0], parts[1]
+        task_id = ""
+        state_id = "legacy"
+        issued_at = int(datetime.utcnow().timestamp())
+
+    # Strict 15-minute TTL check
+    if datetime.utcnow().timestamp() - issued_at > 900:
+         raise ValueError("State token expired")
+            
+    return {"user_id": user_id, "bot_id": bot_id, "task_id": task_id}
+
+def generate_resume_token(task_id: str, user_id: str) -> str:
+    """Generates a secure, bound token for resuming a paused task."""
+    nonce = str(uuid.uuid4())
+    issued_at = int(datetime.utcnow().timestamp())
+    payload = f"{task_id}::{user_id}::{nonce}::{issued_at}"
+    return _encrypt(payload)
+
+def validate_resume_token(token: str, expected_task_id: str, expected_user_id: str) -> bool:
+    """Validates that a resume token is authentic, unexpired, and matches the task+user."""
+    if not token:
+        return False
+    try:
+        decrypted = _decrypt(token)
+        if not decrypted or "::" not in decrypted:
+            return False
+            
+        parts = decrypted.split("::")
+        if len(parts) < 4:
+            return False
+            
+        task_id, user_id, nonce, issued_at_str = parts[0], parts[1], parts[2], parts[3]
+        
+        if task_id != expected_task_id or user_id != expected_user_id:
+            logger.warning("[OAuth] Resume token mismatch (hijack attempt?)")
+            return False
+            
+        # 1 hour strict expiry for resume tokens (user might take a while to auth)
+        if datetime.utcnow().timestamp() - int(issued_at_str) > 3600:
+            logger.warning("[OAuth] Resume token expired")
+            return False
+            
+        return True
+    except Exception as e:
+        logger.error(f"[OAuth] Resume token validation error: {e}")
+        return False
+

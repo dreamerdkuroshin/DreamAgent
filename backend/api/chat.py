@@ -363,13 +363,28 @@ async def event_generator(
                     except Exception as e:
                         logger.error(f"[SSE] Failed to load file context: {e}")
 
+                # Inject recent conversation history for context
+                recent_history = ""
+                if convo_id:
+                    try:
+                        from backend.services.conversation_service import get_messages
+                        with SessionLocal() as db:
+                            msgs = get_messages(db, convo_id)
+                            recent_msgs = msgs[-6:] if msgs else []
+                            for m in recent_msgs:
+                                role_name = "Assistant" if m.role == "assistant" else "User"
+                                recent_history += f"{role_name}: {m.content}\n"
+                    except Exception as e:
+                        logger.error(f"[SSE] Failed to load history: {e}")
+
                 persona = get_persona_prompt(query, is_autonomous=False)
                 prompt = (
                     f"{system_prompt_str}\n\n"
                     f"{file_context}\n"
-                    f"User: {query}\n"
-                    "Reply concisely."
                 )
+                if recent_history:
+                    prompt += f"[Recent Conversation]:\n{recent_history}\n"
+                prompt += f"User: {query}\nReply concisely."
 
                 
                 got_first = False
@@ -628,3 +643,92 @@ async def wipe_context(user_id: str = "local_user", bot_id: str = "local_bot"):
 
 # However, the user provided a full replacement for chat.py focused on streaming.
 # I will check if there were other important parts.
+@router.get("/resume")
+async def resume_task(
+    request: Request,
+    task_id: str,
+    resume_token: str,
+    convo_id: Optional[int] = None,
+    user_id: str = "local_user",
+    bot_id: str = "local_bot",
+    provider: str = "auto",
+    model: str = "",
+    trust_mode: str = "fast"
+):
+    """
+    Resumes a task that was PAUSED for OAuth authentication.
+    Validates the resume_token before continuing.
+    Returns status=expired if the token window has passed.
+    """
+    # ── Fast path: token expiry check BEFORE opening stream ──────────────
+    from backend.oauth.oauth_manager import validate_resume_token
+    if not validate_resume_token(resume_token, task_id, user_id):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "expired",
+                "action": "restart_required",
+                "message": "The resume window has expired. Please start a new task."
+            }
+        )
+
+    # ── Task must still exist (not yet purged by zombie cleanup) ─────────
+    task_data = None
+    if redis_conn:
+        stored = redis_conn.get(f"task:{task_id}:state")
+        if stored:
+            import json as _json
+            task_data = _json.loads(stored)
+    
+    if task_data and task_data.get("state") == "failed" and "timed out" in task_data.get("error", ""):
+        return JSONResponse(
+            status_code=410,
+            content={
+                "status": "expired",
+                "action": "restart_required",
+                "message": "Task was purged by the cleanup engine. Please start a new task."
+            }
+        )
+
+    # ── Set up SSE generator for the resumed task ─────────────────────────
+    if task_id not in TASKS:
+        TASKS[task_id] = {"status": "resuming", "steps": []}
+
+    async def resume_generator():
+        from backend.orchestrator.task_controller import TaskController
+        controller = TaskController(provider=provider, model=model, trust_mode=trust_mode)
+
+        def _publish_resume(event: dict):
+            TASKS[task_id]["steps"].append(event)
+            if redis_conn:
+                redis_conn.rpush(f"task:{task_id}:events", json.dumps(event))
+
+        try:
+            result = await controller.resume(
+                task_id=task_id,
+                resume_token=resume_token,
+                publish=_publish_resume,
+                user_id=user_id,
+                bot_id=bot_id
+            )
+
+            if "⏸️" not in result and "⏳" not in result:
+                TASKS[task_id]["status"] = "completed"
+                _publish_resume({"type": "final", "content": "", "provider": provider, "model": model})
+            elif "⏸️" in result:
+                TASKS[task_id]["status"] = "paused"
+            else:
+                TASKS[task_id]["status"] = "retrying"
+
+        except Exception as e:
+            logger.error(f"[Resume] Error resuming task {task_id}: {e}", exc_info=True)
+            _publish_resume({"type": "error", "content": str(e)})
+            TASKS[task_id]["status"] = "error"
+
+        # Stream all accumulated events back
+        for event in TASKS[task_id]["steps"]:
+            data = json.dumps(event)
+            yield f"data: {data}\n\n"
+            await asyncio.sleep(0.005)
+
+    return StreamingResponse(resume_generator(), media_type="text/event-stream")
