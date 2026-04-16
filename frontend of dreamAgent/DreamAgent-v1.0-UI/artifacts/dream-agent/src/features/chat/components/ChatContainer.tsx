@@ -321,7 +321,7 @@ export function ChatContainer({
           </div>
         </form>
         <div className="flex justify-center mt-3">
-          <p className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] opacity-30">Secure Multi-Agent Environment V10</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] opacity-30">Secure Multi-Agent Environment V1.0</p>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ $ErrorActionPreference = "SilentlyContinue"
 $root = $PSScriptRoot
 
 # 1. Structure the frontend properly
-Move-Item -Path "$root\frontend of dreamAgent\DreamAgent-v10-UI\artifacts\dream-agent" -Destination "$root\frontend" -Force
+Move-Item -Path "$root\frontend of dreamAgent\DreamAgent-v1.00-UI\artifacts\dream-agent" -Destination "$root\frontend" -Force
 Remove-Item -Path "$root\frontend of dreamAgent" -Recurse -Force
 
 # 2. Setup standard folders

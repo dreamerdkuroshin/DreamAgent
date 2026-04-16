@@ -59,7 +59,7 @@ export default function Dashboard() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Command Center</h1>
-          <p className="text-muted-foreground mt-1">DreamAgent v10 · AI workforce at a glance.</p>
+          <p className="text-muted-foreground mt-1">DreamAgent v1.0 · AI workforce at a glance.</p>
         </div>
         <div className="flex gap-3">
           <Link href="/agents" className="inline-flex items-center justify-center px-4 py-2 text-sm rounded-xl font-semibold bg-primary text-black hover:bg-primary/90 shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all">

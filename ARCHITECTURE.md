@@ -1,6 +1,6 @@
 # DreamAgent Architecture Data Flow
 
-DreamAgent v10 is built on a highly parallel, asynchronous architecture designed to handle long-running agent tasks without blocking the main event loop. Below is a detailed breakdown of the system components.
+DreamAgent v1.0 is built on a highly parallel, asynchronous architecture designed to handle long-running agent tasks without blocking the main event loop. Below is a detailed breakdown of the system components.
 
 ## 1. Gateway & Routing (`backend/api/`)
 The `FastAPI` gateway handles incoming requests from the React UI and external Integrations (Telegram, Discord).
@@ -18,10 +18,10 @@ To prevent the FastAPI event loop from freezing, heavy multi-step autonomous tas
 * **Distributed Mode**: If Dragonfly (a Redis drop-in replacement) is connected, tasks are routed to `tasks:processing` lists, allowing external worker nodes to pick them up for mass scalability.
 
 ## 4. State & Memory Management (`backend/core/models.py`)
-* **SQLite Persistence**: Used for local deployments to store user preferences, API keys, chat history, and bot integration IDs. We eschewed PostgreSQL in v10 for better developer portability setup.
+* **SQLite Persistence**: Used for local deployments to store user preferences, API keys, chat history, and bot integration IDs. We eschewed PostgreSQL in v1.00 for better developer portability setup.
 * **Context Engine**: Agents inject contextual metadata into every prompt, pulling from short-term DB memory bounds to recall past project constraints and tool preferences.
 
-## 5. Web Platform (`frontend of dreamAgent/DreamAgent-v10-UI/`)
+## 5. Web Platform (`frontend of dreamAgent/DreamAgent-v1.00-UI/`)
 * Built on **React/Vite** with Tailwind CSS.
 * **Optimistic Updates**: Uses React Query to immediately update the interface whilst polling the background sync loop for backend confirmation, completely eliminating message flickering or ghosting.
 * **Dynamic KPI Dashboards**: The `/monitoring` page polls `/api/v1/stats` to visualize the queue backlog, agent run success rates, and token limits.

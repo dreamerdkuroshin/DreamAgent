@@ -1,6 +1,6 @@
 # Contributing to DreamAgent
 
-Thank you for your interest in DreamAgent! This system has undergone massive upgrades (now v10), shifting from a simple chatbot to a resilient autonomous LLM orchestrator. 
+Thank you for your interest in DreamAgent! This system has undergone massive upgrades (now v1.0), shifting from a simple chatbot to a resilient autonomous LLM orchestrator. 
 
 ## 1. Setting Up Your Development Environment
 
@@ -11,7 +11,7 @@ Thank you for your interest in DreamAgent! This system has undergone massive upg
    ```
 3. **Install Frontend Dependencies**:
    ```bash
-   cd "frontend of dreamAgent/DreamAgent-v10-UI"
+   cd "frontend of dreamAgent/DreamAgent-v1.0-UI"
    npm install
    ```
 4. **Copy Environment Template**:

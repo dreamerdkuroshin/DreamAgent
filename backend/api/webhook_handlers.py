@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # ── PLATFORM SENDERS ────────────────────────────────────────────────────────
 
 async def _discord_send(application_id: str, token: str, text: str):
-    url = f"https://discord.com/api/v10/webhooks/{application_id}/{token}"
+    url = f"https://discord.com/api/v1.0/webhooks/{application_id}/{token}"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(url, json={"content": text[:2000]})

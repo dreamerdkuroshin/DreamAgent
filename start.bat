@@ -10,7 +10,7 @@ start "DreamAgent API" cmd /c "python -m uvicorn backend.main:app --port 8001 --
 echo ========================================================
 echo Starting DreamAgent Frontend...
 echo ========================================================
-start "DreamAgent UI" cmd /c "cd "frontend of dreamAgent/DreamAgent-v10-UI" && npm run dev"
+start "DreamAgent UI" cmd /c "cd "frontend of dreamAgent/DreamAgent-v1.00-UI" && npm run dev"
 
 echo ========================================================
 echo Starting Distributed Worker...

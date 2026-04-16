@@ -1,9 +1,9 @@
 """
-backend/api/chat.py (V10)
+backend/api/chat.py (v1.0)
 
 Changes:
 - Engine instantiated outside generator (fixes 'engine not found' lint)
-- V10 structured SSE: rich trace events with role / attempt / timestamp
+- v1.0 structured SSE: rich trace events with role / attempt / timestamp
 - Support for task cancellation and reconnection
 """
 

@@ -6,7 +6,7 @@ class DiscordBot(BaseBotConnector):
 
     def send_message(self, channel_id, message):
 
-        url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+        url = f"https://discord.com/api/v1.0/channels/{channel_id}/messages"
 
         headers = {
             "Authorization": f"Bot {self.token}",

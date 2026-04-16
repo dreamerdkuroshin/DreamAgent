@@ -733,7 +733,7 @@ function OAuthPanel({ connectedProviders, setConnectedProviders }: any) {
               connected={connectedProviders.has("gdrive")} onStatusChange={handleStatusChange} />
             <OAuthConnectorRow name="Google Calendar" description="Schedule and event management" logo="C" provider="gcalendar"
               connected={connectedProviders.has("gcalendar")} onStatusChange={handleStatusChange} />
-            <OAuthConnectorRow name="YouTube" description="Video data, comments moderation (v10)" logo="▶" provider="youtube"
+            <OAuthConnectorRow name="YouTube" description="Video data, comments moderation (v1.0)" logo="▶" provider="youtube"
               connected={connectedProviders.has("youtube")} onStatusChange={handleStatusChange} />
           </>
         ) : (
@@ -810,7 +810,7 @@ export default function Settings() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">System Configuration</h1>
-          <p className="text-muted-foreground mt-1">All connectors, memory, sandbox, budget, and safety settings for DreamAgent v10.</p>
+          <p className="text-muted-foreground mt-1">All connectors, memory, sandbox, budget, and safety settings for DreamAgent v1.0.</p>
         </div>
 
         {/* Mode Toggle */}
@@ -927,14 +927,14 @@ export default function Settings() {
               <h3 className="text-lg font-display font-bold mb-1 flex items-center gap-2"><Monitor className="w-5 h-5 text-primary" /> Local Tools</h3>
               <p className="text-sm text-muted-foreground mb-6">From <code className="text-primary/80 text-xs">connectors/local/</code>, <code className="text-primary/80 text-xs">plugins/</code>, and <code className="text-primary/80 text-xs">tools/</code></p>
               <ToggleRow label="Python Code Executor" description="Sandboxed execution, max 2GB RAM, 30s timeout" settingKey="TOOL_PYTHON_ENABLED" enabled />
-              <ToggleRow label="JavaScript Executor" description="Node.js sandbox — js_executor.py" badge="v10" settingKey="TOOL_JS_ENABLED" />
+              <ToggleRow label="JavaScript Executor" description="Node.js sandbox — js_executor.py" badge="v1.0" settingKey="TOOL_JS_ENABLED" />
               <ToggleRow label="Terminal / Shell" description="Controlled shell via connectors/local/terminal.py" settingKey="TOOL_TERMINAL_ENABLED" />
               <ToggleRow label="Filesystem Access" description="Read/write files scoped to project directory" settingKey="TOOL_FILESYSTEM_ENABLED" enabled />
               <ToggleRow label="Chrome Browser Control" description="Headless Chromium for web scraping" settingKey="TOOL_BROWSER_ENABLED" />
               <ToggleRow label="Tavily Web Search" description="Real-time search via Tavily API" settingKey="TOOL_TAVILY_ENABLED" enabled />
               <ToggleRow label="Google Search" description="Google search integration" settingKey="TOOL_GOOGLE_ENABLED" />
               <ToggleRow label="Calculator Tool" description="Arithmetic operations via tools/calculator_tool.py" settingKey="TOOL_CALCULATOR_ENABLED" enabled />
-              <ToggleRow label="Tool Intelligence (Auto-select)" description="Auto-picks best tool from message content — tool_intelligence.py" badge="v10" settingKey="TOOL_INTELLIGENCE_ENABLED" enabled />
+              <ToggleRow label="Tool Intelligence (Auto-select)" description="Auto-picks best tool from message content — tool_intelligence.py" badge="v1.0" settingKey="TOOL_INTELLIGENCE_ENABLED" enabled />
             </Card>
           )}
 
@@ -967,17 +967,17 @@ export default function Settings() {
                 </select>
               </div>
               <ToggleRow label="Knowledge Graph" description="v7: Entity + relationship store (production: Neo4j / ArangoDB)" badge="v7" />
-              <ToggleRow label="Memory Reflection" description="v10: Periodically consolidates and improves memories" badge="v10" />
+              <ToggleRow label="Memory Reflection" description="v1.0: Periodically consolidates and improves memories" badge="v1.0" />
               <div className="pt-4"><Button>Save Memory Settings</Button></div>
             </Card>
           )}
 
           {activeTab === "sandbox" && (
             <Card className="p-6">
-              <h3 className="text-lg font-display font-bold mb-1 flex items-center gap-2"><Box className="w-5 h-5 text-primary" /> Execution Sandbox <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded ml-1">v10</span></h3>
+              <h3 className="text-lg font-display font-bold mb-1 flex items-center gap-2"><Box className="w-5 h-5 text-primary" /> Execution Sandbox <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded ml-1">v1.0</span></h3>
               <p className="text-sm text-muted-foreground mb-6">Sandbox executors from <code className="text-primary/80 text-xs">sandbox/</code></p>
               <ToggleRow label="Python Executor" description="Execute Python with threading timeout and SafetyGuard" enabled />
-              <ToggleRow label="JavaScript Executor" description="Node.js sandbox via js_executor.py (new in v10)" badge="new" />
+              <ToggleRow label="JavaScript Executor" description="Node.js sandbox via js_executor.py (new in v1.0)" badge="new" />
               <ToggleRow label="Docker Runner" description="Full container isolation with custom image (docker_runner.py)" />
               <div className="mt-4 space-y-3 pt-2 border-t border-white/5">
                 <div className="flex items-center gap-3">

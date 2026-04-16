@@ -36,11 +36,11 @@ services:
 
   frontend:
     build:
-      context: ./frontend of dreamAgent/DreamAgent-v10-UI/artifacts/dream-agent
+      context: ./frontend of dreamAgent/DreamAgent-v1.00-UI/artifacts/dream-agent
     command: pnpm dev --host 0.0.0.0
     ports:
       - "5000:5000"
     volumes:
-      - ./frontend of dreamAgent/DreamAgent-v10-UI/artifacts/dream-agent:/app
+      - ./frontend of dreamAgent/DreamAgent-v1.00-UI/artifacts/dream-agent:/app
     depends_on:
       - backend
